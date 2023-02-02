@@ -1,0 +1,347 @@
+---
+title: "Discrete Probability Distributions"
+author: "Ben Goodrich"
+format: revealjs
+editor: visual
+execute: 
+  echo: true
+---
+
+## Obligatory Disclosure
+
+-   Ben is an employee of Columbia University, which has received several research grants to develop Stan
+
+-   Ben is also a manager of GG Statistics LLC, which uses Stan
+
+-   According to Columbia University [policy](https://research.columbia.edu/content/conflict-interest-and-research), any such employee who has any equity stake in, a title (such as officer or director) with, or is expected to earn at least $\$5,000.00$ per year from a private company is required to disclose that
+
+## Review of Last Week
+
+-   We defined the probability of knocking down $x \geq 0$ out of $n \geq x$ pins as $\Pr\left(x \mid n\right) = \log_{n + 2}\left(1 + \frac{1}{n + 1 - x}\right)$
+
+-   We used these probabilities to simulate $R$ frames of bowling
+
+-   We calculated many other probabilities from the simulations (modern) but also using the rules of probability (ancient)
+
+-   We used Bayes' Rule to calculate the probability that $x_1 = 8$ given that $x_2 = 2$, but that was not really Bayesian because there were no unknowns (such as, is $\beta > 0$ in a regression?)
+
+```{r}
+source("bowling.R") # if your working directory is Week03/
+rev(ls()) # these were all defined in Week02
+```
+
+## Expectation of a Discrete R.V.
+
+```{r}
+round(Pr(Omega), digits = 4) # What's the mode, median, and expectation?
+```
+
+::: incremental
+-   The mode is the element of $\Omega$ with the highest probability
+-   The median is the smallest element of $\Omega$ such that at least half of the cumulative probability is $\leq$ that element
+-   Expectation of a discrete random variable $X$ is defined as $$\mathbb{E}X = \sum_{x\in\Omega}\left[x\times\Pr\left(x\right)\right] \equiv \mu$$
+-   An expectation is a probability-weighted sum of $\Omega$
+:::
+
+## Calculating Expectations in Bowling
+
+-   How would you compute $\mathbb{E}X_1$ using the $R$ `frames`?
+
+. . .
+
+```{r}
+summarize(frames, mu_1 = mean(x_1))
+```
+
+-   How would you calculate it exactly using `Pr()`?
+
+. . .
+
+```{r}
+sum(Omega * Pr(Omega))
+```
+
+-   How would you calculate $\mathbb{E}X_2$ exactly using `joint_Pr`?
+
+. . .
+
+```{r}
+sum(Omega * colSums(joint_Pr)) # weight with marginal probabilities
+```
+
+## Decision Theory with Discrete R.V.s
+
+-   Let $g\left(X\right)$ be a function of a discrete random variable, $X$. Then, $\mathbb{E}g\left(X\right) = \sum_{x\in\Omega}\left[g\left(x\right)\times\Pr\left(x\right)\right] \neq g\left(\mathbb{E}X\right).$
+
+-   To make the decision that maximizes expected utility:
+
+    1.  Enumerate $D$ possible decisions $\{d_1, d_2, \dots, d_D\}$
+    2.  Define a utility function $g\left(d,\dots\right)$ that also depends on unknown (and maybe some known) quantities, like $X$
+    3.  Update your conditional probability distribution for all the unknowns given all the knowns using Bayes' Rule
+    4.  Evaluate $\mathbb{E}g\left(d,\dots\right)$ for each of the $D$ decisions
+    5.  Choose the decision that has the highest value in (4)
+
+## Bernoulli Distribution
+
+::: incremental
+-   The Bernoulli distribution over $\Omega=\left\{ 0,1\right\}$ depends on a (possibly unknown) probability parameter $\pi \in \left[0,1\right]$
+
+-   By introducing parameters, such as $\pi$, we can make probability distributions more flexible and thus more applicable to a wider variety of situations
+
+-   The probability that $x = 1$ is $\pi$ and the probability that $x = 0$ is $1 - \pi$, which can be written as a Probability Mass Function (PMF): $\Pr\left(x \mid \pi\right)=\pi^{x}\left(1-\pi\right)^{1-x}$
+
+-   What is the expectation of $X$?
+
+-   $\mu = 0 \times \pi^{0}\left(1-\pi\right)^{1-0} + 1 \times \pi^{1}\left(1-\pi\right)^{1-1} = \pi$
+:::
+
+## Binomial Distribution
+
+::: incremental
+-   A Binomial random variable can be defined as the sum of $n$ independent Bernoulli random variables all with the same $\pi$
+-   What is $\Omega$? What is the expectation of $X$?
+-   What is an expression for $\Pr\left(x \mid n=3, \pi\right)$? Hint: 8 cases
+    -   All succeed, $\pi^3$ or all fail, $\left(1 - \pi\right)^3$
+    -   1 succeeds and 2 fail $\pi^1 \left(1-\pi\right)^{3 - 1}$ with 3 orderings
+    -   2 succeed and 1 fails $\pi^2 \left(1-\pi\right)^{3 - 2}$ with 3 orderings
+    -   In general, $\Pr\left(x \mid n,\pi\right)={n \choose x}\pi^{x} \left(1-\pi\right)^{n-x} = \frac{n!}{\left(n - x\right)!x!} \pi^{x} \left(1-\pi\right)^{n-x}$
+:::
+
+## Probability of Four Strikes in a Game
+
+```{r}
+frames <- mutate(frames, game = rep(1:(n() / 10), each = 10)) # type this
+```
+
+-   How would you compute a probability of getting 4 strikes in a game of bowling (consisting of 10 frames) using `frames` ?
+
+. . .
+
+```{r}
+group_by(frames, game) %>% 
+  summarize(four_strikes = sum(x_1 == 10) == 4, .groups = "drop") %>% 
+  summarize(prob = mean(four_strikes))
+```
+
+-   How would you calculate it exactly using the binomial PMF?
+
+. . .
+
+```{r}
+c(easy = choose(10, 4) * Pr(10)^4 * (1 - Pr(10))^(10 - 4),
+  easier = dbinom(4, size = 10, prob = Pr(10)))
+```
+
+## Poisson Distribution for Counts
+
+::: incremental
+-   Let $n\uparrow \infty$ and let $\pi \downarrow 0$ such that $\mu = n\pi$ remains fixed. Since $\pi = \frac{\mu}{n}$, what is the limit of the binomial PMF, $\Pr\left(x \mid n, \pi\right)={n \choose x}\pi^{x} \left(1-\pi\right)^{n-x}$?
+
+    -   ${n \choose x}\pi^{x} = \frac{n!}{x!\left(n - x\right)!} \frac{\mu^x}{n^x} = \frac{n \times \left(n - 1\right) \times \left(n - 2\right) \times \dots \times \left(n - x + 1\right)} {n^x} \frac{\mu^x}{x!}$ $\rightarrow 1 \times \frac{\mu^x}{x!}$
+    -   $\left(1-\pi\right)^{n-x} = \left(1-\frac{\mu}{n}\right)^{n-x} = \left(1-\frac{\mu}{n}\right)^n \times \left(1-\frac{\mu}{n}\right)^{-x}$ $\rightarrow e^{-\mu} \times 1$
+    -   Thus, the limiting PMF is $\Pr\left(x \mid \mu\right) = \frac{\mu^xe^{-\mu}}{x!}$, which is the PMF of the Poisson distribution over $\Omega = \{0,\mathbb{Z}_+\}$
+:::
+
+## Parameterized Bowling Probabilities
+
+-   This is artificial because parameters are typically continuous
+-   Let $\Pr\left(x \mid n, \kappa\right) = \frac{\log_{n + 2 + \kappa}\left(1 + \frac{1}{n + 1 + \kappa - x}\right)}{1 - \log_{n + 2 + \kappa}\left(1 + \kappa\right)}$ where $\kappa \in \{0,\mathbb{Z}_+\}$ is a parameter. If $\kappa = 0$, we get the same PMF as last week.
+
+```{r}
+#| comment: ""
+round(t(sapply(c(`0` = 0, `1` = 1, `9` = 9), FUN = Pr, x = Omega, n = 10)), digits = 4)
+```
+
+. . .
+
+-   How could you calculate the first roll's expectation if $\kappa = 2$?
+
+. . .
+
+```{r}
+sum(Omega * Pr(Omega, n = 10, kappa = 2))
+```
+
+## How to Think about (a prior on) $\kappa$
+
+```{r, kappa}
+#| echo: false
+plot(1:999, Omega %*% sapply(1:999, FUN = Pr, x = Omega, n = 10), type = "p", log = "x",
+     ylab = expression(paste("Conditional expectation of first roll given ", kappa)),
+     xlab = expression(paste(kappa, " (log scale)")), las = 2, pch = 20,
+     xlim = c(1, 999), ylim = c(5, 7))
+points(4 / 5, sum(Omega * Pr(Omega)), pch = 20)
+segments(x0 = 9, y0 = 0, y1 = 5.67, col = 2, lty = 2)
+segments(x0 = .Machine$double.eps, y0 = 5.67, x1 = 9, col = 2, lty = 2)
+```
+
+. . .
+
+What expectation would you choose for yourself in a Poisson prior for $\kappa$?
+
+## Simulating $R$ Frames along with $\kappa$
+
+. . .
+
+```{r}
+#| code-line-numbers: 1-3|4|5-7|8-11|12
+R <- 10^7  # practically infinite
+m <- 8.5   # expectation in the Poisson prior on kappa
+frames <-  # tibble with the results of R frames of bowling from our model
+  tibble(kappa = rpois(n = R, m)) %>% # draw kappa from prior distribution
+  group_by(kappa) %>% # like last weeek but now condition on kappa draw
+  mutate(x_1 = sample(Omega, size = n(), replace = TRUE, 
+                      prob = Pr(Omega, n = 10, first(kappa)))) %>%
+  group_by(kappa, x_1) %>%
+  mutate(x_2 = sample(Omega, size = n(), replace = TRUE, prob =
+                      Pr(Omega, n = 10 - first(x_1), first(kappa)))) %>%
+  ungroup
+print(frames, n = 6)
+```
+
+## Joint Probability of $\kappa$ and $X_1$ {.smaller}
+
+-   How would you form $\Pr\left(\kappa \bigcap x_1 \mid m = 8.5, n = 10\right)$ under a Poisson prior on $\kappa$?
+
+. . .
+
+```{r}
+kappa <- 0:999 # practically infinite, at least relative to a m of 8.5
+joint_Pr <- outer(kappa, Omega, FUN = function(k, x) dpois(k, m) * Pr(x, n = 10, k)) # 1000 x 11 matrix
+rownames(joint_Pr) <- kappa
+knitr::kable(joint_Pr, digits = 3) # can do View(joint_Pr) to see more rows
+```
+
+## Marginal(ized) Probability of $X_1 \mid m$
+
+```{=html}
+<script type="text/x-mathjax-config">
+MathJax.Hub.Register.StartupHook("TeX Jax Ready",function () {
+  MathJax.Hub.Insert(MathJax.InputJax.TeX.Definitions.macros,{
+    cancel: ["Extension","cancel"],
+    bcancel: ["Extension","cancel"],
+    xcancel: ["Extension","cancel"],
+    cancelto: ["Extension","cancel"]
+  });
+});
+</script>
+```
+-   How can `frames` be used to compute $\Pr\left(x_1 = 8 \mid m, n\right)$?
+
+. . .
+
+```{r}
+summarize(frames, prob = mean(x_1 == 8))
+```
+
+-   How would you calculate any $\Pr\left(\bcancel{\kappa} \bigcap x_1 \mid m, n = 10\right)$ using `joint_Pr`, which is not $\Pr\left(x_1 \mid n = 10, \kappa = 0\right)$?
+
+. . .
+
+```{r}
+round(colSums(joint_Pr), digits = 4) # yes, although dependent on m
+round(Pr(Omega, n = 10, kappa = 0), digits = 4) # no
+```
+
+## Bayes' Rule for $\kappa$ Given $m$ and $x_1 = 8$
+
+-   How would you compute the probability that $\kappa = 3$ given that $x_1 = 8$ using `frames`?
+
+. . .
+
+```{r}
+filter(frames, x_1 == 8) %>% 
+  summarize(prob = mean(kappa == 3))
+```
+
+-   How would you calculate it exactly using the $1000 \times 11$ table `joint_Pr`?
+
+. . .
+
+```{r}
+joint_Pr["3", "8"] / sum(joint_Pr[ , "8"])
+```
+
+## Visual Representation: Posterior PMF
+
+```{r}
+#| message: false
+library(ggplot2)
+filter(frames, x_1 == 8) %>% 
+  ggplot() +
+  geom_bar(aes(x = as.factor(kappa), y = (..count..) / sum(..count..))) + 
+  labs(x = "kappa", y = "Posterior probability given x_1 = 8")
+```
+
+## Marginal(ized) Probability of a Frame {.smaller}
+
+```{r}
+marginal_Pr <- apply(table(frames) / R, MARGIN = 2:3, FUN = sum) # table(frames) is 1000 x 11 x 11
+knitr::kable(marginal_Pr, digits = 3)
+```
+
+```{r, marginal_Pr}
+#| include: false
+#| cache: true
+arr <- array(0, dim = c(length(kappa), length(Omega), length(Omega)), 
+             dimnames = list(kappa, Omega, Omega))
+for (k in kappa) for (x_1 in Omega) for (x_2 in 0:(10 - x_1)) {
+  arr[k + 1, x_1 + 1L, x_2 + 1L] <-
+    dpois(k, m) * Pr(x_1, n = 10, k) * Pr(x_2, n = 10 - x_1, k)
+}
+marginal_Pr <- apply(arr, MARGIN = 2:3, FUN = sum) # exact needed below
+```
+
+## Bayes' Rule Conditional on a Frame
+
+-   How would you compute the probability that $\kappa = 3$ given that $m = 8.5$, $x_1 = 8$, and $x_2 = 2$ using `frames`?
+
+. . .
+
+```{r}
+filter(frames, x_1 == 8, x_2 == 2) %>% 
+  summarize(prob = mean(kappa == 3))
+```
+
+-   How would you calculate it exactly utilizing `marginal_Pr`?
+
+. . .
+
+```{r}
+dpois(3, m) * Pr(8, n = 10, kappa = 3) * Pr(2, n = 10 - 8, kappa = 3) /
+  marginal_Pr["8", "2"]
+```
+
+## Bayesian Learning
+
+-   Suppose we calculate the posterior probability of each value of $\kappa$ given only that $m = 8.5$ and $x_1 = 8$ and use that as a "prior" PMF when subsequently conditioning on $x_2 = 2$
+
+. . .
+
+```{r}
+prior <- joint_Pr[ , "8"] / sum(joint_Pr[ , "8"]) # initial posterior PMF
+likelihood <- Pr(2, n = 10 - 8, kappa) # a function of kappa, not x = 2
+numerator <- prior * likelihood
+denominator <- sum(numerator)
+numerator["3"] / denominator
+```
+
+. . .
+
+-   We end up with the same posterior probability as we did before when using a Poisson prior for $\kappa$ with $m = 8.5$ and conditioning on both $x_1 = 8$ and $x_2 = 2$ simultaneously
+
+## Bayesian Inference Compared
+
+::: incremental
+-   Bayesian inference is a system of belief management
+
+-   It is coherent with one data point (or even zero data points since your beliefs are reflected by your prior distribution)
+
+-   If you have two data points, that is one data point twice
+
+-   If you have $N$ data points, that is one data point $N$ times
+
+-   Other quantitative methods are not belief management systems, lack this coherence, & don't even work for $N = 1$
+
+-   Frequentism remains possible but is very complicated when $N$ is not fixed in advance by the researcher
+:::
