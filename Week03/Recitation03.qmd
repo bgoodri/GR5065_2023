@@ -1,0 +1,196 @@
+---
+title: "Recitation for Week03"
+author: "Prateek Jain"
+format: revealjs
+editor: visual
+execute: 
+  echo: true
+---
+
+## Setup for Recitation
+
+-   Open the GR5065_2023 "project" in RStudio
+
+-   Click the blue arrow under the Git tab to pull
+
+-   Change the working directory to Week03
+
+-   Create a new Quarto document in Week03, which you should use to write your answers in, along with your notes
+
+-   Recall from Thursday that now $\kappa \in \{0,\mathbb{Z}_+\}$ is a parameter: $$\Pr\left(x \mid n, \kappa\right) = \frac{\log_{n + 2 + \kappa}\left(1 + \frac{1}{n + 1 + \kappa - x}\right)}{1 - \log_{n + 2 + \kappa}\left(1 + \kappa\right)}.$$ If $\kappa = 0$, we get the same PMF for bowling as in Week02.
+
+## Quarto Document (follow along!)
+
+-   Delete whatever comes after the YAML in the example Quarto document. At the end of the YAML section, put
+
+<!-- -->
+
+    execute: 
+      echo: true
+
+-   Create a new R chunk at the top by clicking on Insert -\> Code Chunk -\> R or by using the keyboard shortcut
+
+-   In this R chunk, call the `set.seed` function once with any positive integer, like
+
+```{r}
+set.seed(20230207)
+```
+
+-   Doing so makes the pseudo-random numbers come out the same way every time you render to a PDF
+
+## $R$ Frames of Bowling with $\kappa$ (inability)
+
+Type this in a new R chunk, which we did on Thursday:
+
+```{r}
+#| code-line-numbers: 1-4|5|6-8|9-12
+source("bowling.R") # creates Omega and Pr() with a kappa argument
+R <- 10^7  # practically infinite
+m <- 8.5   # expectation in the Poisson prior on kappa
+frames <-  # tibble with the results of R frames of bowling from our model
+  tibble(kappa = rpois(n = R, m)) %>% # draw kappa from prior distribution
+  group_by(kappa) %>% # like last weeek but now condition on kappa draw
+  mutate(x_1 = sample(Omega, size = n(), replace = TRUE, 
+                      prob = Pr(Omega, n = 10, first(kappa)))) %>%
+  group_by(kappa, x_1) %>%
+  mutate(x_2 = sample(Omega, size = n(), replace = TRUE, prob =
+                      Pr(Omega, n = 10 - first(x_1), first(kappa)))) %>%
+  ungroup
+```
+
+. . .
+
+```{r}
+print(frames, n = 3)
+```
+
+## Modern Probabilities
+
+-   How would you compute the probability that $x_1 = 8$ and $x_2 = 2$?
+
+. . .
+
+```{r}
+summarize(frames, prob = mean(x_1 == 8 & x_2 == 2))
+```
+
+-   How would you compute the probability that $x_1 = 8$, given that $x_2 = 2$?
+
+. . .
+
+```{r}
+filter(frames, x_2 == 2) %>% 
+  summarize(prob = mean(x_1 == 8))
+```
+
+## Expectations of Interest
+
+-   Using `frames`, compute the expectation of $\kappa$, $X_1$, and $X_2$
+
+. . .
+
+```{r}
+summarize(frames, kappa = mean(kappa), x_1 = mean(x_1), x_2 = mean(x_2))
+```
+
+-   Using `frames`, compute the expectation of $\kappa$ given $x_1 = 8$
+
+. . .
+
+```{r}
+filter(frames, x_1 == 8) %>% summarize(kappa = mean(kappa)) # less now
+```
+
+-   Compute the expectation of $\kappa$ given $x_1 = 8$ and $x_2 = 2$
+
+. . .
+
+```{r}
+#| eval: false
+filter(frames, x_1 == 8, x_2 == 2) %>% summarize(kappa = mean(kappa))
+```
+
+## Scoring in Bowling
+
+```{r}
+frames <- mutate(frames, game = rep(1:(n() / 10), each = 10)) # type this
+```
+
+-   We are going to utilize the simpler "World Bowling" [scoring](https://en.wikipedia.org/wiki/Ten-pin_bowling#World_Bowling_scoring):
+
+```{r}
+#| code-line-numbers: 1|2|3|4|5-7
+scores <- mutate(frames, points = case_when( # L means treat as an integer
+    x_1 == 10 ~ 30L,             # strike
+    x_1 + x_2 == 10 ~ 10L + x_1, # spare but not a strike
+    TRUE ~ x_1 + x_2             # neither a strike nor a spare
+  )) %>% 
+  group_by(game) %>% # now calculate one game at a time
+  summarize(game_score = sum(points)) # reduction, so now tidy by game
+```
+
+. . .
+
+-   Using `scores`, compute the expected score in a game
+
+. . .
+
+```{r}
+summarize(scores, game_score = mean(game_score))
+```
+
+## Exercise
+
+-   Suppose two bowlers are competing against each other in a bowling match
+
+    -   For bowler A, you have a Poisson prior on $\kappa$ with expectation $m_A = 8.5$ (as before)
+
+    -   For bowler B, $m_B = 6.75$
+
+-   Use $R$ simulations to compute the probability that the first bowler gets a higher score than the second bowler
+
+-   This just requires that you repeat and synthesize what you have previously done today
+
+## Answer to Exercise
+
+```{r}
+scores_B <- tibble(kappa = rpois(R, 6.75)) %>% 
+  group_by(kappa) %>% 
+  mutate(x_1 = sample(Omega, size = n(), replace = TRUE, prob = 
+                      Pr(Omega, n = 10, kappa = first(kappa)))) %>%
+  group_by(kappa, x_1) %>%
+  mutate(x_2 = 
+         sample(Omega, size = n(), replace = TRUE, prob = 
+                Pr(Omega, n = 10 - first(x_1), kappa = first(kappa)))) %>% 
+  ungroup %>% 
+  mutate(points = case_when(
+    x_1 == 10 ~ 30L,
+    x_1 + x_2 == 10 ~ 10L + x_1,
+    TRUE ~ x_1 + x_2)
+  ) %>% 
+  group_by(game_B = rep(1:(R / 10), each = 10)) %>% 
+  summarize(game_score_B = sum(points), .groups = "drop")
+```
+
+. . .
+
+```{r}
+bind_cols(scores, scores_B) %>% 
+  summarize(prob = mean(game_score > game_score_B))
+```
+
+## Conclusion
+
+-   A random variable is a function
+
+-   A function of a function is a (composite) function
+
+-   A function of a random variable is a random variable
+
+-   Random variables (usually) have expectations
+
+-   We can compute the expectation of a function like bowling score using $R$ simulations of our generative model
+
+-   So, you need to be able to code a generative model for your phenomenon of interest, including a prior distribution you can draw parameters from
+
+-   Render your Quarto document for today into a PDF
