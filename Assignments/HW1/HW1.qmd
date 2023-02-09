@@ -1,0 +1,203 @@
+---
+title: "GR5065 HW1"
+format: 
+  pdf:
+    number-sections: true
+    include-in-header:
+      text: |
+        \pagenumbering{gobble}
+        \usepackage{amsmath}
+        \usepackage{color}
+        \usepackage{pst-poker}
+        \psset{inline=symbol}
+        \usepackage{cancel}
+pdf-engine: xelatex
+editor: visual
+execute: 
+  echo: true
+keep-tex: true
+---
+
+# Poker
+
+This problem is about one instance of the game poker that was played recently. Playing poker well requires years of dedication, but you are not being asked to play poker. In contrast, analyzing a single instance of poker only requires that you apply principles of probability because you will be told the relevant rules, facts, and strategies. And you can also ask about anything you do not understand on Ed Discussion.
+
+A deck consists of 52 shuffled cards, of which there are 13 cards (2, 3, 4, 5, 6, 7, 8, 9, 10, Jack, Queen, King, Ace) ordered from lowest to highest for each of four suits (Spades, Hearts, Diamonds, Clubs). In No Limit Texas Hold 'Em poker, each player is dealt two cards (known as "hole cards" or a "hand") face down so that only they can see (or use) them. Five cards eventually get placed face up (known collectively as the "board") in the middle of the table that any player can utilize. In between, there are several rounds of betting of poker chips. A person wins all of the poker chips that have been previously bet (known as the "pot") if either all of the other players fold (i.e. give up) or they beat all the remaining players at "showdown". At showdown, each remaining player forms a collection of seven cards as the union of their two hole cards and the five cards in the middle and then selects the best five-card subset, where more rare events beat more common events.
+
+The rules of No Limit Texas Hold 'Em are explained in more (and excessive) detail at
+
+<https://en.wikipedia.org/wiki/Texas_hold_%27em>
+
+Unfortunately, poker involves a lot of jargon and words that do not even make sense in English. If you prefer an explanation in Chinese, you could look at
+
+<https://zh.wikipedia.org/zh/%E5%BE%B7%E5%B7%9E%E6%92%B2%E5%85%8B>
+
+The instance of poker we are considering in this problem was filmed at
+
+<https://youtu.be/ToH_OBiIN6o>
+
+which you should watch (ignoring any commercials that may pop up) and took place primarily between Daniel Negreanu and Bryn Kenney (in sunglasses). This poker tournament consisted of $24$ players (across four tables) who each paid $\$300,000$ to enter the poker tournament. Each entrant was given some number of plastic poker chips. In a poker tournament, you cannot simply leave and exchange your remaining poker chips for cash. Rather, players are eliminated from the tournament when they have zero chips left, and $\$3,312,000$ in cash was awarded to the last player remaining.
+
+The main rule to know is what beats what at showdown. In order from rarest to least rare:
+
+1.  **Straight Flush**: Five out of seven cards of the same suit and adjacent values, such as \twos \fours as hole cards with a board of \As \fivec \fours \tres \trec. A straight flush is consistent with Negreanu's betting but not Kenney's.
+
+2.  **Four of a Kind**: Four out of seven cards of the same value, such as \tred \treh as hole cards with a board of \As \fivec \fours \tres \trec. Negreanu actually had this four of a kind, which is also known as "quads".
+
+3.  **Full House**: Three out of seven cards of the same value and two of the remaining cards of the same value, such as \Ad\\Ac as hole cards with a board of \As \fivec \fours \tres \trec. Kenney actually had this full house, which is also known as "Aces full (of threes)".
+
+4.  **Flush**: Five out of seven cards of the same suit but not adjacent values, such as \Ks \Js as hole cards with a board of \As \fivec \fours \tres \trec. Although neither player had a flush, this was consistent with both players' betting up until their very last bets.
+
+5.  **Straight**: Five out seven cards of adjacent values but not the same suit, such as \Ks \twoh as hole cards with a board of \As \fivec \fours \tres \trec. Note that for the purpose of forming a straight only, an Ace can take the value of $1$ (in which case a straight is also known as a "wheel"). Although neither player had a straight, Negreanu's betting was consistent with him having a two or both a six and a seven, up until his very last bet.
+
+6.  **Three of a Kind**: Three out of seven cards of the same value and no other cards of the same value, such as \tred \treh as hole cards with a board of \As \fivec \fours \tres \sevc. Both players had three of a kind (also known as a "set"), up until the last card in the middle was turned over, in which case Kenney would have won at showdown because three Aces are better than three threes.
+
+7.  **Two Pair**: Two out of seven cards of the same value and two of the remaining five cards of the same value, such as \Ad \Kh as hole cards with a board of \As \fivec \fours \tres \trec. Kenney could have had this, although it is too weak to be consistent with his later bets.
+
+8.  **One Pair**: Two out of seven cards of the same value with none of the remaining five cards of the same value, such as \Kh \Qd as hole cards with a board of \As \fivec \fours \tres \trec. Either could have been dealt this, although it is only consistent with their initial bets.
+
+9.  **High Card**: None of the seven cards of the same value, such as \Ks \Qd as hole cards with a board of \As \fivec \fours \tres \sevc. Negreanu perhaps could have had this, in which case his aggressive betting would have been a bluff that was intended to get Kenney to fold.
+
+## Pair of Aces
+
+Negreanu was required to put $2,000$ chips into the pot as an ante. In addition, Ike Haxton (wearing a mask) was required to put an additional $1,000$ chips as the small blind bet before being dealt his cards, while Negreanu was required to put another $2,000$ chips in the plot as the big blind bet before being dealt his cards. Thus, the pot initially contained $5,000$ chips before cards were dealt.
+
+Kenney was the first player who could bet voluntarily. When there are five other players and you have to make the first decision, the optimal poker strategy is to bet with about $\frac{1}{6}$ of the ${52 \choose 2} = \frac{52 \times 51}{2} = 1326$ possible hands you could be dealt and fold with the other $\frac{5}{6}$. Loosely speaking, unless your hand is in the top sixth, chances are at least one of the other five players has a better hand than you. The top sixth consists of almost all pairs, an Ace with any other card of the same suit, and two cards with very high but different values, especially if they are adjacent and / or of the same suit. Since Kenney has a pair of Aces as hole cards --- which is the best possible scenario --- he bets $5,000$ chips, which is what he would have bet with any top sixth hand.
+
+-   Irrespective of any betting, the probability of being dealt a pair of Aces is about `r dhyper(x = 2, m = 4, n = 52 - 4, k = 2)`. How was this calculated?
+
+## Objective Versus Subjective
+
+The next four players all fold since their hands were considerably worse than the top sixth hand that Kenney presumably has. Negreanu has a pair of threes, which is easily in the top sixth. Moreover, Negreanu only has to bet $3,000$ chips in order to call Kenney's bet of $5,000$ chips (because he already put $2,000$ chips into the pot as the big blind before being dealt his cards), so Negreanu would have called with the majority of hands he could have been dealt. This brings the pot to $13,000$ chips.
+
+At 0:45 into the video --- and before any cards are turned over in the middle --- the bottom left of the screen asserts that Negreanu has a 18% chance to win at showdown and Kenney has an 82% chance to win. These probabilities are from the audience's perspective and are "objective" in the sense that if one player has a higher pair as hole cards and the other player has a lower pair, the former will win at showdown in 82% of the possible ways that five cards of the remaining $48$ cards in the deck can be turned face-up in the middle.
+
+However, neither player knows for sure that the other player has a pair as hole cards. If one player has a pair and the other player has two higher cards of different values, then the former is a slight favorite to win at showdown among all possible ways that five cards of the remaining $48$ cards in the deck can be turned face-up in the middle.
+
+-   From Negreanu's perspective, is his chance of winning at showdown greater than, about the same as, or less than 18% (an exact number is not required)? Why?
+
+-   From Kenney's perspective, is his chance of winning at showdown greater than, about the same as, or less than 82% (an exact number is not required)? Why?
+
+Then, the \As \fivec \fours (the "flop") are turned over in the middle, and the bottom left of the screen shows that Kenney's chances of winning at showdown have increased to 85%. Negreanu "checks" (i.e. bets zero chips), which he would do with all his possible hole cards, Kenney bets $5,000$ chips, which he would do with all his possible hole cards, and Negreanu calls Kenney's bet of $5,000$ chips, bringing the pot to $23,000$ chips. Negreanu presumably would have folded had the \fours been something like the \nineh, but as it stands, Negreanu would be in good shape against *most* hands that Kenney could have if either of the next two cards in the middle is a three (giving Negreanu three of a kind) or a two (giving Negreanu a straight).
+
+-   If the probability that Kenney wins at showdown changes from 82% to 85%, how can these probabilities be "objective"?
+
+## Flop and River
+
+The fourth card (the "flop") in the middle is the \tres, which appears to be good from Negreanu's perspective (because it gives him three of a kind) but is actually very bad (because it is worse than Kenney's three Aces) and appears to be somewhat bad from Kenney's perspective (because Negreanu might have a straight and / or flush) but is actually very good (because Negreanu has neither a straight nor a flush). Accordingly, Negreanu bets $10,000$ chips and Kenney calls (rather than raising), which brings the pot to $43,000$ chips. The fifth and final card (the "river") in the middle is the \trec, which gives Negreanu four of a kind (and Kenney a full house).
+
+-   The commentator says "*this* is a 990 to 1 shot". What does the commentator mean by "this", what assumptions are implicitly being made, and how was this ratio calculated under those assumptions?
+
+## Negreanu's Decision
+
+When the river card is revealed to be the \trec, Negreanu bets $25,000$ chips, which brings the pot to $68,000$ chips. Kenney then raises to $105,000$ chips, which brings the pot to $173,000$ chips and forces Negreanu to decide whether to fold, call, or raise. It is clear that Negreanu should raise --- and in fact, he raises for all of his chips (or rather for an amount equal to Kenney's remaining chips) --- but we need to consider Negreanu's strategy for what he would do in this situation with all of the hands he could have that had not previously folded.
+
+Suppose Negreanu had \twos \fours, giving him a straight flush, which is the best possible hand in light of the five face-up cards in the middle (also known as the "nuts"). If Negreanu's strategy were to raise all-in if and only if he has the nuts *and Kenney knows that is Negreanu's strategy*, then Kenney would simply fold when Negreanu raises all-in, which would yield Negreanu the same number of chips as if he had called. Thus, only raising all-in with the nuts is not the best strategy if your opponent knows that is your strategy.
+
+-   Show that a strategy of raising all-in on the river if and only if you have the nuts or the second nuts (\tred \treh in this case) is worse than a strategy of simply calling with the nuts or second nuts, presuming your opponent knows that is your strategy and your objective is to accumulate as many chips as possible.
+
+## Kenney's Decision
+
+Kenney has the third nuts with a full house that contains three Aces and needs to decide whether to fold or call Negreanu's all-in bet for $97,000$ more chips to have a chance to win a pot of $350,500$ chips at showdown. If Negreanu had a full house with \Ah \treh or \Ah \tred (or a pair of fours or fives), Kenney would win at showdown because a full house with three Aces is better than a full house with three of any other card. Kenney thinks for a bit, calls, and is eliminated from the tournament.
+
+-   With reference to Bayes Rule (but exact numbers are not required) and decision theory, was Kenney's decision to call Negreanu's all-in bet a good decision, if Kenney's objective was to accumulate as many chips as possible?
+
+# **Reliability Demonstration Testing**
+
+*After* going through the following clarifying information, read [Jeon and Ahn (2018)](https://www.mdpi.com/2071-1050/10/10/3671), which is a bit challenging but not because the ideas in the paper are terribly complex in light of what we have been learning in GR5065. The essence of Jeon and Ahn (2018) is to develop a reliability demonstration test (RDT) that can be used to determine whether, for example, a batch of grenades explode sufficiently reliably. In their notation:
+
+-   $N$ is the *known* number of grenades in the batch
+
+-   $X$ is the *unknown* number of defective grenades (i.e. they do not explode) out of $N$
+
+-   $n$ is the number of randomly-selected grenades to test out of the $N$ in the batch
+
+-   $k$ is the number of defective grenades among the $n$ tested
+
+Equation (2) of Jeon and Ahn (2018) is the Probability Mass Function (PMF) of the hypergeometric distribution, which yields the probability of observing $k$ defects out of $n$, given a batch of size $N$ with a *stipulated* number $x$ of defective items in the batch. Of course, the main challenge is that we do not know the total number of defective items, $X$, and are going to need a prior on it below. We can rewrite equation (2) in better notation as $$\Pr\left(k \mid N, n, x\right) = \frac{{x \choose k}{N - k \choose n - k}}{{N \choose n}} = \frac{{n \choose k}{N - n \choose x - k}}{{N \choose x}}$$
+
+for $\Omega = \{0,1,\dots,\min\left(n,x\right)\}$.
+
+R comes with a PMF for the hypergeometric distribution, but it uses a different parameterization of it. It is unfortunately common for different authors to use different parameterizations of the same probability distribution or different probability distributions where one implies the other. In an attempt to reduce confusion, let's utilize the parameterization from Jeon and Ahn (2018) and overwrite R's version of the PMF and random-number generator function for the hypergeometric distribution by first executing
+
+```{r}
+dhyper <- function(k, N, n, x, log = FALSE) { # PMF
+  # convert Jeon and Ahn (2018)'s parameterization to R's
+  stats::dhyper(k, N - n, n, x, log)
+}
+rhyper <- function(nn, N, n, x) { # nn is the number of draws to take
+  # convert Jeon and Ahn (2018)'s parameterization to R's
+  stats::rhyper(nn, N - n, n, x)
+}
+```
+
+As mentioned above, $X$ is unknown, but we can place a prior on it that yields the probability that $X = x$. A reasonable prior distribution --- both for substantive reasons and for mathematical convenience --- is to use the beta-binomial distribution, whose PMF is given in equation (A4), but better notation would be $$\Pr\left(x \mid N, a, b\right) = {N \choose x} \frac{B\left(a + x, b + N - x\right)}{B\left(a,b\right)},$$
+
+where $$B\left(p,q\right) = \frac{1}{p + q - 1}\prod_{i = 1}^\infty \frac{i \left(p + q + i - 2\right)}{\left(p + i - 1\right)\left(q + i - 1\right)}$$is (one of many equivalent [forms](http://functions.wolfram.com/06.18.08.0001.01) of) the "beta function". Special functions such as the beta function should *never* be evaluated on a computer the way you see them written in papers and books. Rather, you should use the `beta` function in R if necessary, and that is not even necessary in this case because the beta-binomial PMF and random number generating function are provided in the extraDistr package (which you may need to install once from CRAN outside your quarto document)
+
+```{r}
+library(extraDistr)
+args(dbbinom) # the size argument is what we are calling N
+```
+
+Note that if $a = 1$ and $b = 1$ --- which are the default arguments (called `alpha` and `beta`) in the `dbbinom` function --- then the probability is $\frac{1}{N + 1}$ for all integer values of $x$ between $0$ and $N$, e.g.
+
+```{r}
+dbbinom(0:5, size = 5)
+```
+
+Higher values of $a$ shift the probability toward larger values of $X$ and higher values of $b$ shift the probability toward smaller values of $X$
+
+```{r}
+rbind(a_is_e = dbbinom(0:5, size = 5, alpha = exp(1), beta = 1),
+      b_is_e = dbbinom(0:5, size = 5, alpha = 1, beta = exp(1)))
+```
+
+The expectation of $X$ under a beta-binomial distribution is given in equation (A11) as $$\mathbb{E}X = N \frac{a}{a + b}$$
+
+The beta-binomial prior is mathematically convenient in this case because the posterior distribution of the number of *remaining* defective items in the batch of $N$ (i.e. grenades that do not explode but have not been sampled for testing) is also in the beta-binomial family but with updated parameters. Equation (A7), written in better notation, is $$\Pr\left(x - k \mid k, N, n, a, b\right) = \frac{\overbrace{\Pr\left(x \mid N, a, b\right)}^{\mbox{beta-binomial}} \times \overbrace{\Pr\left(k \mid N, n, x\right)}^{\mbox{hypergeometric}}}{\underbrace{\Pr\left(\bcancel{x} \bigcap k \mid N, a, b, n\right)}_{\mbox{marginalized probability of }k}} =
+\overbrace{{N - n \choose x - k}\frac{B\left(a + x, b + N - x\right)}{B\left(a + k,b + n - k\right)}}^{\mbox{new beta-binomial}},$$
+
+which is in the form of a beta-binomial PMF with the following changes from the prior
+
+-   $N$ in the prior becomes $N - n$ in the posterior
+
+-   $a$ in the prior becomes $a + k$ in the posterior
+
+-   $b$ in the prior becomes $b + n - k$ in the posterior
+
+and, in addition, we evaluate the prior PMF at $k$ and the posterior PMF at $n - k$. Moreover, if there is still too much posterior uncertainty about the number of defective grenades remaining, you could sample again and further update your beliefs, using the previous posterior PMF as a prior.
+
+## Prior
+
+Suppose you have a batch of $N$ grenades that you procured from an established grenade supplier. Based on Table 1 in Jeon and Ahn (2018), you decide to sample $n = 31$ of them for testing.
+
+-   Select $a$ and $b$, such that $N \frac{a}{a + b}$ seems like a plausible expectation for the number of defective grenades in the batch of $N$. Assign these values to `a` and `b` in a chunk of your R code
+
+## Simulations
+
+Construct a data.frame called `draws` that has $R = 10,000,000$ rows, where each row is a realization of the grenade testing model outlined in Jeon and Ahn (2018). Specifically, call the `rbbinom` function in the extraDistr package to create a column called `x` by drawing $R$ times from a beta-binomial prior (with the above values of $N$, $a$ and, $b$). Then, call the `rhyper` function above to create another column called `k` by drawing R times from a hypergeometric distribution (with the above values of $N$, $n$, and the corresponding realizations of `x`).
+
+Note that unlike the `sample` and `Pr` functions we have used for bowling, `rbbinom` and `rhyper` both accept vectors for their arguments (except the first) so there is no need to `group_by` anything in order to draw from the appropriate conditional probability distribution.
+
+## Queries
+
+Using `draws` and the dplyr package, compute the answer to the following questions:
+
+-   What is the probability that $k = 2$, given $N$, $n$, $a$, and $b$?
+
+-   Suppose you observe that $k = 2$ out of $n$ tested grenades fail to explode. What is the probability that there are at most three defective grenades remaining among the grenades that have not been tested?
+
+## Frequentism
+
+Frequentists fix the unknown parameters to particular values in order to evaluate estimators. Suppose $N = 100$ and $n = 37$ and furthermore that there are $X = 5$ defective grenades among the $N$. Suppose $k = 2$ defective grenades are found in testing among the $n = 37$ randomly sampled grenades. Use deterministic calculations to answer the following questions:
+
+-   What value of $x$ maximizes the *ex ante* probability of observing $k = 2$ defects out of $n = 37$?
+
+-   What is the probability of observing at most $k = 2$ defective grenades out of $n = 37$?
+
+## Congress
+
+You may be wondering what grenades have to do with social science, beyond the fact that freshman Representative Cory Mills recently [gifted](https://twitter.com/_phillipsmorgan/status/1618648723764170753) Vietnam era grenades to his colleagues in the U.S. House of Representatives. But suppose there are $N = 7,004,034$ registered voters in the state of Georgia, of which $n = 3,535,579$ voted in the December 2022 runoff election for the U.S. Senate between Democrat Raphael Warnock and Republican Hershel Walker. Of those, Warnock got $k = 1,816,096$ votes and thereby won the election.
+
+-   Use the beta-binomial posterior distribution (and your choice of $a$ and $b$) from Jeon and Ahn (2018) to calculate the probability (using the `pbbinom` function, which evaluates the Cumulative Mass Function) that there are at least $1,685,922$ registered voters who did not vote in this runoff election but would have preferred Warnock, in which case Warnock was supported by a majority of *registered* voters.
