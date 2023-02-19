@@ -1,0 +1,172 @@
+---
+title: "GR5065 HW1"
+format: 
+  pdf:
+    number-sections: true
+    include-in-header:
+      text: |
+        \pagenumbering{gobble}
+        \usepackage{amsmath}
+        \usepackage{cancel}
+pdf-engine: xelatex
+editor: visual
+execute: 
+  echo: true
+---
+
+# Poker
+
+This problem is based on <https://youtu.be/ToH_OBiIN6o>.
+
+## Pair of Aces
+
+Using the General Multiplication Rule, the probability of being dealt two Aces is equal to the marginal probability of being dealt one Ace (given that the deck contains $4$ Aces among its $52$ cards) times the conditional probability of being dealt another Ace given that you have already been dealt one Ace from the deck. Thus, probability of being dealt two Aces is $$\frac{4}{52} \times \frac{3}{51} = \frac{4 / 4}{52 / 4} \times \frac{3 / 3}{51 / 3} = \frac{1}{13} \times \frac{1}{17} = \frac{1}{221} \approx 0.0045249$$
+
+## Objective Versus Subjective
+
+The probability of being dealt a pair of any of the other twelve card values would be the same as above, and thus the probability of being dealt some pair is $\frac{1}{17}$. Since Kenney would bet pre-flop with about $\frac{1}{6}$ of hands, about a third of those are paired hands and about two thirds are unpaired hands. From Negreanu's perspective --- i.e. conditioning on the fact that Kenney bet but not Kenney's exact hole cards --- a pair of threes is slightly favored against unpaired hands, heavily favored against a pair of twos, tied in the very unlikely event that Kenney has the other two threes, and a heavy underdog against any other pair. If we weight all those possibilities by the probability that they occur, Negreanu's self-assessed chance of winning is higher than the worst-case pre-flop scenario that happened in reality.
+
+Conversely, from Kenney's perspective --- i.e. conditioning on the fact that Negreanu called but not Negreanu's exact hole cards --- the probability of winning is worse than the best-case scenario of 82% but only slightly so. Every hand that Negreanu could have (including all those he does not fold) is trailing Kenney's pair of Aces, except in the very unlikely case that Negreanu has the other two Aces. But, if you have to play against a pair of Aces, it is better to have hole cards that are adjacent and of the same suit, which gives you a fighting chance of getting a flush, straight, or two pair that might win at showdown. If we weight all the possibilities from the best-case scenario to the worst-case scenario by their probability of occurring, that is going to be in between the best and worst probabilities.
+
+When the probability that Kenney wins at showdown increases from 82% to 85% after the flop, that is still conditional on the cards visible to the audience on the screen. It is still objective in Fisher's sense because the turn is a realization of a well-defined random variable, rather than anyone's subjective beliefs about what cards another player might have.
+
+## Turn and River
+
+The probability that both the turn and river are a three, given that Negreanu has the other two threes and that $45$ cards are left in the deck (after accounting for Kenney's two Aces and the three cards on the flop) is, by the General Multiplication Rule, $$\frac{2}{45} \times \frac{1}{44} = \frac{2}{1980} = \frac{2 / 2}{1980 / 2} = \frac{1}{990}$$
+
+Thus, the 990 to 1 comment was not the probability of Negreanu winning at showdown because it was more likely for Negreanu to win by getting a straight.
+
+## Negreanu's Decision
+
+If your strategy is to raise all-in on the river if and only if you have either the nuts or the second nuts --- and your opponent knows that is your strategy --- then your opponent will call if and only if they have the nuts and fold otherwise. Thus, if you have the nuts, raise all-in, and your opponent folds, then you will have the same number of chips as if you had called. Conversely, if you have the second nuts, raise all-in, and your opponent calls with the nuts, then you will lose the maximum number of chips. Even if the probability that your opponent has the nuts is small, this strategy has a lower expected number of chips than a strategy of calling with both the nuts and second nuts. So, in order for a strategy of raising all-in with the nuts or second nuts to have a better expectation than simply calling, you also have to raise all-in with some hand that is worse than the second nuts.
+
+## Kenney's Decision
+
+If Kenney folds, he will have $97,000$ chips. If Kenney calls and wins, he will have $97,000 + 350,500 = 447,500$ chips. If Kenney calls and loses, he will have zero chips. Thus, Kenney's expected number of chips if he calls is $$\mathbb{E}\mbox{chips}\mid \mbox{call} = \Pr\left(\mbox{win}\right) \times 447,500 + \left(1 - \Pr\left(\mbox{win}\right)\right) \times 0.$$
+
+In order for that to be equal to the $97,000$ chips Kenney would have for sure if he folds, the probability of winning must be $\frac{97,000}{447,500} \approx 0.217$. If the probability of Kenney winning is any greater than that, then it is a good decision to call (presuming the objective is to maximize chips).
+
+We need to use Bayes' Rule to judge whether the probability of Kenney winning is greater than $0.217$. That would look something like $$\Pr\left(\mbox{win} \mid \mbox{raise all-in}\right) = \frac{\Pr\left(\mbox{win}\right) \times \Pr\left(\mbox{raise all-in} \mid \mbox{win}\right)}{\Pr\left(\mbox{raise all-in}\right)}$$
+
+The key is the denominator of Bayes' Rule: What proportion of the ${52 \choose 2} = 1326$ hands that Negreanu could have would he raise all-in with? From the previous subproblem, we know that is the straight flush, the four threes, and at least one other hand, but the proportion is tiny relative to $1326$.
+
+Kenney knows that Negreanu cannot have two Aces because Kenney has two Aces himself. Moreover, Negreanu knows that Kenney knows that Negreanu cannot have two Aces because if Negreanu had two Aces, Negreanu would have raised pre-flop rather than called. So, although Negreanu might well raise all-in with a full house consisting of three Aces and two threes, everyone know that Negreanu does not have that in this case.
+
+Thus, the other hand(s) that Negreanu would raise all-in with are worse than Kenney's full house, which would imply that Kenney has at least a $\frac{1}{3}$ chance to win, given Negreanu's all-in raise and thus, it is a good decision on Kenney's part in light of the available information at the time (even though it turned out badly).
+
+Although it is not necessary for this subproblem to figure out exactly what other hand(s) Negreanu would raise all-in with, it is worthwhile to think it through as an exercise in conditional probability. If Negreanu had an Ace and a three, Negreanu would have a full house, but that would make it substantially more likely that --- if Kenney calls an all-in raise --- Kenney's hole cards are a pair of fives or fours, in which case Kenney would win with a better full house. Thus, it would make more sense for Negreanu to raise all-in with a pair of fives, but there are ${3 \choose 2} = 6$ ways to have a pair of fives that does not involve the five of clubs (which was on the flop). If Negreanu were to raise all-in with a straight flush, four threes, and all $6$ combinations of a pair of fives, then Negreanu would lose to Kenney's full house containing three Aces $\frac{6}{8}$ of the time and beat all the other full houses that Kenney might call with. But in light of all this, would Kenney call with any full house other than the one that contains three Aces? If not, then Negreanu should only raise all-in with one (perhaps randomly chosen) of the $6$ ways to have a pair of fives (in addition to the straight flush and the four threes) in order to give Kenney a $\frac{1}{3}$ probability --- marginalized over all the hands Negreanu would raise all-in with --- to win at showdown with a call. In that scenario, both players are happy to be all-in, at least until the hole cards are turned over.
+
+# **Reliability Demonstration Testing**
+
+This problem is based on [Jeon and Ahn (2018)](https://www.mdpi.com/2071-1050/10/10/3671), so we use their parameterization of the hypergeometric distribution. It should be noted that (another parameterization) of the hypergeometric distribution is also useful for analyzing [poker](https://en.wikipedia.org/wiki/Hypergeometric_distribution#Application_to_Texas_hold'em_poker).
+
+These functions convert from the parameterization of the hypergeometric distribution used by Jeon and Ahn (2018) to the parameterization used by R:
+
+```{r}
+#| message: false
+dhyper <- function(k, N, n, x, log = FALSE) { # PMF
+  # convert (correctly) Jeon and Ahn (2018)'s parameterization to R's
+  stats::dhyper(k, x, N - x, n)
+}
+rhyper <- function(nn, N, n, x) { # nn is the number of draws to take
+  # convert (correctly) Jeon and Ahn (2018)'s parameterization to R's
+  stats::rhyper(nn, x, N - x, n)
+}
+library(extraDistr)
+```
+
+but the versions of these functions given in HW1.pdf were mistaken. You used these functions, which is fine conceptually, but they do not correspond to Jeon and Ahn (2018).
+
+```{r}
+dhyper <- function(k, N, n, x, log = FALSE) { # PMF
+  # convert (incorrectly) Jeon and Ahn (2018)'s parameterization to R's
+  stats::dhyper(k, N - n, n, x, log)
+}
+rhyper <- function(nn, N, n, x) { # nn is the number of draws to take
+  # convert (incorrectly) Jeon and Ahn (2018)'s parameterization to R's
+  stats::rhyper(nn, N - n, n, x)
+}
+```
+
+Nevertheless, let's continue with the wrong `dhyper` and `rhyper`.
+
+## Prior
+
+You could choose any $a, b > 0$, but given the supposition that you are obtaining grenades from an established supplier, $\mathbb{E}X = N \frac{a}{a + b}$ should be closer to zero than to $N$, in which case $a$ should be smaller than $b$. Your certainty about $X$ increases with both $a$ and $b$, so something like
+
+```{r}
+a <- exp(1)
+b <- pi^2
+```
+
+might be reasonable.
+
+## Simulations
+
+To draw $R$ times from our model, we compose draws of $x$ from the beta-binomial prior distribution with draws of $k$ from the hypergeometric distribution given $x$, as well as $N = 100$ and $n = 31$.
+
+```{r}
+#| message: false
+library(dplyr)
+N <- 100
+n <- 31
+R <- 10^7
+draws <- tibble(x = rbbinom(R, N, a, b), # marginal, i.e. prior
+                k = rhyper(R, N, n, x))  # conditional on realization of x
+```
+
+## Queries
+
+The marginal probability of observing $k = 2$ defective grenades when testing $n = 31$ out of $N = 100$ of them when $a$ and $b$ are as above is approximately.
+
+```{r}
+summarize(draws, prob = mean(k == 2))
+```
+
+But given that $k = 2$ grenades are observed to be defective, the conditional probability of at most three grenades being defective among the $N - n$ remaining grenades is approximately
+
+```{r}
+filter(draws, k == 2) %>% 
+  summarize(prob = mean((x - k) <= 3))
+```
+
+## Frequentism
+
+As can be seen,
+
+```{r}
+dhyper(k = 2, N, n = 37, x = 0:5)
+```
+
+the probability of observing $k = 2$ defective grenades when testing $n = 37$ out of $N = 100$ of them is highest when $\widehat{x} = 3$. This is a maximum likelihood estimate.
+
+If $X = 5$, then
+
+```{r}
+sum(dhyper(k = 0:2, N, n = 37, x = 5))
+```
+
+is the probability of observing zero, one, or two defects when testing $n = 37$ out of $N = 100$. Thus, a Frequentist would fail to reject a null hypothesis that $X = 5$ on the basis of this $p$-value if two defects were observed in testing.
+
+## Congress
+
+In this case, it does not matter at all what values of $a$ and $b$ that you use (provided they are positive), but a reasonable way to choose $a$ and $b$ is based on the November 2022 election between Warnock, Walker, and a variety of third party candidates. Both Warnock and Walker got about the same number of votes but slightly less than the 50% needed to avoid a runoff election in December. Thus, $a$ and $b$ should be similar and large in magnitude, perhaps
+
+```{r}
+a <- 25 
+b <- 24 # Walker got slightly fewer votes in November
+```
+
+In that case, we can evaluate
+
+```{r}
+N <- 7004034
+n <- 3535579
+k <- 1816096
+# with lower.tail = FALSE, pbbinom() returns the probability > 1685921
+pbbinom(1685921, size = N - n, a + k, b + n - k, lower.tail = FALSE)
+```
+
+to find that we are essentially certain that Warnock was favored by a majority of registered voters in Georgia, under the perhaps debatable assumption that the $n$ people who turned out to vote in the runoff are a random sample of the $N$ registered voters. Nevertheless, there would have to be a lot of registered voters who favored Walker --- but did not favor him enough to actually turn out to vote for him in the runoff --- in order to overturn this conclusion.
+
+This subproblem emphasizes that the *process* of Bayesian inference remains sound in a case like this where we have a ton of data and a simple model.
