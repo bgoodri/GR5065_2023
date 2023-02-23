@@ -1,0 +1,200 @@
+---
+title: "GR5065 HW2 Answer Key"
+format: 
+  pdf:
+    number-sections: true
+    include-in-header:
+      text: |
+        \pagenumbering{gobble}
+        \usepackage{amsmath}
+        \usepackage{cancel}
+editor: visual
+execute: 
+  echo: true
+editor_options: 
+  chunk_output_type: console
+---
+
+# Economic Growth
+
+This question is based on this is [paper](https://obamawhitehouse.archives.gov/sites/default/files/docs/gdo_issue_brief_final.pdf), applied to the February 23rd release of estimated GDP for the fourth quarter of $2022$.
+
+## Prior for $\tau$
+
+```{r}
+a <- 4 * 10
+b <- 9 * 10
+```
+
+These can be any numbers such that $\frac{a}{b} = \frac{4}{9}$ but larger numbers imply more prior certainty about $\tau$.
+
+## Prior for $\mu_t \mid \tau$
+
+```{r}
+x_t <- -0.19
+m <- 3.2 + (-1.8) * x_t
+v <- 5
+```
+
+It is less clear what a reasonable value of $v > 0$ should be, so you mostly have to figure it out from what prior predictive distribution it implies.
+
+## Prior Predictive Distribution
+
+```{r}
+#| message: false
+library(dplyr)
+R <- 10^7
+draws <- tibble(tau = rgamma(R, a, b),
+                mu  = rnorm(R, mean = m, sd = 1 / sqrt(v * tau)),
+                GDP = rnorm(R, mean = mu, sd = 1 / sqrt(tau)),
+                GDI = rnorm(R, mean = mu, sd = 1 / sqrt(tau)))
+```
+
+```{r}
+#| message: false
+library(ggplot2)
+ggplot(draws) +
+  geom_density(aes(x = GDP), color = "black") +
+  geom_density(aes(x = GDI), linetype = "dotted", color = "red",
+               show.legend = FALSE) +
+  labs(x = "Estimate",
+       y = "Density")
+```
+
+## Posterior Distribution
+
+```{r}
+GDP_t <- 2.7
+posterior_draws <- filter(draws, round(GDP, digits = 1) == GDP_t)
+```
+
+```{r}
+ggplot(posterior_draws) +
+  geom_hex(aes(x = mu, y = tau, fill = after_stat(density)))
+```
+
+## Addendum
+
+Although you were not asked to work through it, this is an example where the priors are naturally conjugate with the likelihood, and one of the very few examples where the posterior distribution of two parameters can be worked out analytically. In [short](https://en.wikipedia.org/wiki/Normal-gamma_distribution#Posterior_distribution_of_the_parameters), when conditioning on $n$ observations
+
+-   $a$ in the prior becomes $a^\ast = a + \frac{n}{2}$ in the posterior
+
+-   $b$ in the prior becomes $b^\ast = b + \frac{nv}{v + n} \frac{\left(\overline{x} - m\right)^2}{2} + \frac{1}{2}\sum_{i = 1}^n \left(x_i - \overline{x}\right)^2$ in the posterior
+
+-   $v$ in the prior becomes $v^\ast = v + n$ in the posterior
+
+-   $m$ in the prior becomes $m^\ast = \frac{vm + n \overline{x}}{v + n}$
+
+-   The predictive distribution is in the Student $t$ family and can be evaluated with either the prior or the posterior hyperparameters
+
+We can confirm these facts by comparing
+
+```{r}
+n <- 1
+summarize(posterior_draws, 
+          avg_mu = mean(mu),
+          m_star = (v * m + n * GDP_t) / (v + n))
+summarize(posterior_draws,
+          avg_tau = mean(tau),
+          v_star = (a + n / 2) / 
+            (b + n * v / (v + n) * 0.5 * (GDP_t - m)^2 + 0.5 * 0))
+```
+
+The paper advocates the use of Gross Domestic Output (GDO), which is an average of GDP and GDI. Since GDO is $\overline{x}$ in the above notation and $n$ would be $2$, $m^\ast$ is GDO if and only if $v = 0$, which would ascribe zero prior precision (i.e. infinite error) to Okun's law. No economist actually believes that Okun's law has no predictive value, i.e. a reduction in unemployment has no bearing on economic output, but approximately zero economists use Bayes' Rule for empirical estimation (even when there is a closed-form solution for the posterior distribution).
+
+# Climate Change
+
+## Prior
+
+```{r}
+draws <- tibble(numer = rnorm(R, mean = 3.7, sd = 0.2 * 3.7),
+                denom = rnorm(R, mean = 1.6, sd = 0.5 * 1.6),
+                ECS = numer / denom)
+```
+
+## Truncation
+
+```{r}
+draws <- filter(draws, ECS >= 0, ECS <= 10)
+```
+
+The proportion of draws satisfying this constraint is `r nrow(draws) / R` .
+
+```{r}
+ggplot(draws) +
+  geom_density(aes(x = ECS))
+```
+
+## Ratio of Normal Random Variates
+
+```{r}
+dratio <- function(z, mu_X = 3.7, sigma_X = 0.74, mu_Y = 1.6, sigma_Y = 0.8) {
+  var_X <- sigma_X^2
+  var_Y <- sigma_Y^2
+  
+  a <- sqrt(z^2 / var_X  + 1 / var_Y)
+  b <- mu_X / var_X * z + mu_Y / var_Y
+  c <- mu_X^2 / var_X + mu_Y^2 / var_Y
+  aa <- a^2
+  d <- exp( (b^2 - c * aa) / (2 * aa) )
+  
+  sigma_X_sigma_Y <- sigma_X * sigma_Y
+  b * d / (a^3 * (sqrt(2 * pi) * sigma_X_sigma_Y)) *
+    (pnorm(b / a) - pnorm(-b / a)) +
+    exp(-0.5 * c) / (aa * pi * sigma_X_sigma_Y)
+}
+```
+
+Although it was not required, we can check that our implementation of `dratio` is correct with
+
+```{r}
+integrate(dratio, lower = -Inf, upper = Inf)
+```
+
+Hopefully, it is clear that the mathematical form of the PDF need not convey any intuition about the random variable. It is just a non-negative function that integrates to $1$ over its sample space that does not have any relevance at a particular point. Rather, it is used as a weighting function over the entire sample space and is best plotted to see its general shape.
+
+## Posterior
+
+```{r}
+L <- function(chi, e, c) {
+  ( (1 - 2 * e) * (2 * pnorm(sqrt(2) * (2 * chi - 2 * c)) - 1) + 1 ) / 2
+}
+```
+
+For any scalar value of $\chi$ , we need to multiply the six contributions to the overall likelihood over the "data"
+
+```{r}
+e <- c(Lii = .25, Liii = .35, Liv = .2, Hi = .75, Hii = .65, Hiii = .6)
+c <- c(Lii = 1.5, Liii = 1.5, Liv = 2, Hi = 4, Hii = 4.5, Hiii = 4.5)
+```
+
+To do so, we define a function that evaluates the numerator of Bayes Rule, then integrate it over the $\left[0,10\right]$ interval to obtain the denominator, and then define another function that calculates their ratio.
+
+```{r}
+numer <- function(chi) {
+  dratio(chi) * 
+    L(chi, e[1], c[1]) * L(chi, e[2], c[2]) * L(chi, e[3], c[3]) *
+    L(chi, e[4], c[4]) * L(chi, e[5], c[5]) * L(chi, e[6], c[6])
+}
+denom <- integrate(numer, lower = 0, upper = 10)$value
+post <- function(chi) numer(chi) / denom
+```
+
+From there, we can plot the prior --- taking care to divide by the above probability of the ECS falling in the $\left[0,10\right]$ interval --- density and the posterior density, as in Figure 2b of Stevens et al. (2016)
+
+```{r}
+ggplot() +
+  xlim(0, 7) +
+  geom_function(fun = ~dratio(.x) / (nrow(draws) / R), color = "black") +
+  geom_function(fun = post, color = "blue") + 
+  labs(x = "Equilibrium Climate Sensitivity (ECS)",
+       y = "Density")
+```
+
+Conditioning on the "data" yields a posterior distribution that is more concentrated than the prior and places less probability on the ECS being less than $1.5$ or greater than $4.5$.
+
+## Addendum
+
+The Stevens et al. (2016) paper is intended to illustrate how one could combine a variety of disparate evidence with theory (i.e. priors) to get a more concentrated posterior distribution of the ECS. But Figure 2b in their paper has a posterior distribution that is much too uncertain for policymakers and was too simple for actual climate scientists.
+
+[Sherwood et al. (2020)](https://agupubs-onlinelibrary-wiley-com.ezproxy.cul.columbia.edu/doi/epdf/10.1029/2019RG000678) picked up on the general approach in Stevens et al. (2016) but used much more data and theory to estimate a model with multiple parameters besides just the ECS. Unfortunately, the atmospheric science is much too complicated and foreign for a QMSS homework, but Sherwood et al. (2020) was influential to the most recent [report](https://www.ipcc.ch/report/ar6/wg2/) by the Intergovernmental Panel on Climate Change. Sherwood et al.'s posterior distribution puts a $\frac{2}{3}$ chance that the ECS is between 2.6 and 3.9 degrees Celsius, with a $\frac{1}{6}$ chance of it being lower and a $\frac{1}{6}$ chance of it being higher.
