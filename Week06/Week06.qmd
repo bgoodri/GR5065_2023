@@ -1,0 +1,300 @@
+---
+title: "Hamiltonian Markov Chain Monte Carlo"
+author: "Ben Goodrich"
+format: revealjs
+editor: visual
+execute: 
+  echo: true
+editor_options: 
+  chunk_output_type: console
+---
+
+## Obligatory Disclosure
+
+```{=html}
+<script type="text/x-mathjax-config">
+MathJax.Hub.Register.StartupHook("TeX Jax Ready",function () {
+  MathJax.Hub.Insert(MathJax.InputJax.TeX.Definitions.macros,{
+    cancel: ["Extension","cancel"],
+    bcancel: ["Extension","cancel"],
+    xcancel: ["Extension","cancel"],
+    cancelto: ["Extension","cancel"]
+  });
+});
+</script>
+```
+-   Ben is an employee of Columbia University, which has received several research grants to develop Stan
+
+-   Ben is also a manager of GG Statistics LLC, which uses Stan
+
+-   According to Columbia University [policy](https://research.columbia.edu/content/conflict-interest-and-research), any such employee who has any equity stake in, a title (such as officer or director) with, or is expected to earn at least $\$5,000.00$ per year from a private company is required to disclose that
+
+## Review of GR5065 Thusfar
+
+-   Bayesian is a belief-management system and thus is general
+
+-   Fisher: Science should be about truth, not anyone's beliefs
+
+-   Bayesians wield probability rigorously, so you need to learn it
+
+-   For 200 years, Bayesians were stumped by the denominator $$f\left(\mathbf{y}\right) = f\left(\bcancel{\boldsymbol{\theta}} \bigcap \mathbf{y}\right) = \int\limits_{-\infty}^\infty \cdots \int\limits_{-\infty}^\infty f\left(\boldsymbol{\theta}\right) f\left(\mathbf{y}\mid \boldsymbol{\theta}\right)d\theta_1 \dots d\theta_K$$
+
+-   In 1990, that hurdle was side-stepped by using many random draws on a computer, rather than pen-and-paper solutions
+
+## Markov Processes
+
+-   A Markov process is a sequence of random variables where the future is *conditionally independent* of the past given the present, but nothing is *marginally independent* of anything
+-   Let $X_t$ have conditional PDF $f\left(x_t \mid x_{t - 1}\right)$. The joint PDF is $$f\left(x_1 \bigcap x_2 \bigcap \dots \bigcap x_T \mid x_0\right) = 
+    \prod_{t = 1}^T f\left(x_t \mid x_{t - 1}\right)$$
+-   What is $f\left(\bcancel{x_1} \bigcap \bcancel{x_2} \dots \bigcap x_T \mid x_0\right) = f\left(x_T \mid x_0\right)$? As $T \uparrow \infty$, $f\left(x_T \mid x_0\right) \rightarrow f\left(x_T\right)$, which we can draw from
+
+## Autoregressive Processes
+
+-   An AR1 model is the simplest (i.e. *linear*) Markov process where $x_t = m \left(1 - p\right) + p x_{t - 1} + \epsilon_t$ and $\epsilon_t$ is distributed normal with expectation zero and standard deviation $s$
+-   As $T \uparrow \infty$, the $T$-th realization of this process is distributed normal with expectation $m$ and standard deviation $\frac{s}{\sqrt{1 - p^2}}$
+
+```{r}
+#| message: false
+library(purrr)
+T <- 1000; R <- 10000
+m <- -1; s <- 2; p <- 0.5
+AR1 <- function(prev, epsilon) m * (1 - p) + p * prev + epsilon
+x_T <- map_dbl(1:R, ~ { # reduce() just keeps the T-th realization
+  reduce(rnorm(T, mean = 0, sd = s), AR1, .init = rpois(n = 1, 10))
+}) # there needs to be an x_0, but it does not matter what it is
+c(mean_diff = mean(x_T) - m, sd_diff = sd(x_T) - s / sqrt(1 - p^2))
+```
+
+## Visualization: AR1 Process $\left(R = 10\right)$
+
+```{r}
+#| echo: false
+library(ggplot2)
+library(dplyr)
+R <- 10
+draws <- tibble(r = as.factor(rep(1:R, each = (T + 1))),
+                t = rep(0:T, times = R)) %>%
+  group_by(r) %>% 
+  mutate(x = accumulate(rnorm(T, mean = 0, sd = s), AR1, 
+                        .init = rpois(n = 1, 10))) %>% 
+  ungroup
+ggplot(draws) +
+  geom_path(aes(x = t, y = x)) +
+  geom_hline(aes(yintercept = m), color = "red") +
+  facet_wrap(~ r, nrow = 2) +
+  labs(x = "time",
+       y = "x")
+```
+
+## Effective Sample Size {.smaller}
+
+-   What if we only executed the AR1 process once but kept the last $R$ realizations? They are all still $\mathcal{N}\left(m,\frac{s}{\sqrt{1 - p^2}}\right)$ as $T \uparrow \infty$ but not independent, which affects estimation.
+
+-   In an AR1 process, the correlation between $x_t$ and $x_{t \mp n}$ is $p^n$ and $\left|p\right| < 1$
+
+-   In general, if a Markov process mixes fast enough for the MCMC CLT to hold, then
+
+    -   The Effective Sample Size is $n_{eff} = \frac{R}{1 + 2\sum_{n=1}^\infty p\left(n\right)}$, where $p\left(n\right)$ is the correlation between two draws that are $n$ iterations apart
+    -   The MCMC standard error of the mean of the $R$ draws is $\frac{\sigma}{\sqrt{n_{eff}}}$ where $\sigma$ is the true posterior standard deviation of the parameter in question
+
+-   The MCMC algorithms in the 1990s (some combination of Gibbs, Metropolis-Hastings, and slice sampling) tended to have $p\left(n\right) \approx 1$ for moderate $n$ and thus $n_{eff} \lll R$
+
+-   The MCMC algorithm in Stan since $2011$ tends to have $p\left(1\right) < 0$ and $p\left(n\right) \approx 0$ for moderate $n$, and thus $n_{eff} > R$ or $n_{eff} \approx R$ , so $R$ can be reasonably sized
+
+## What if $p = -0.5$ in an AR1 Process?
+
+```{r}
+#| echo: false
+p <- -p
+draws <- tibble(r = as.factor(rep(1:R, each = (T + 1))),
+                t = rep(0:T, times = R)) %>%
+  group_by(r) %>% 
+  mutate(x = accumulate(rnorm(T, mean = 0, sd = s), AR1, 
+                        .init = rpois(n = 1, 10))) %>% 
+  ungroup
+ggplot(draws) +
+  geom_path(aes(x = t, y = x)) +
+  geom_hline(aes(yintercept = m), color = "red") +
+  facet_wrap(~ r, nrow = 2) +
+  labs(x = "time",
+       y = "x")
+```
+
+## Hamiltonian MCMC Algorithms, Part 1
+
+-   Stan's MCMC algorithm is more complicated than an AR1
+
+-   First, we take the natural logarithm of Bayes' Rule, $\ln f\left(\boldsymbol{\theta} \mid \mathbf{y}\right) = \ln f\left(\boldsymbol{\theta}\right) + \ln f\left(\mathbf{y} \mid \boldsymbol{\theta}\right) - \ln f\left(\mathbf{y}\right)$, where $\boldsymbol{\theta}$ is a vector of $K$ parameters and then introduce $\boldsymbol{\phi}$, which is a vector of $K$ parameters w/ $\phi_k \thicksim \mathcal{N}\left(0,s_k\right)$ under the prior
+
+-   Define "energy" as the sum of potential and kinetic energy $$H\left(\boldsymbol{\theta}, \boldsymbol{\phi}\right) = -\left(\ln f\left(\boldsymbol{\theta}\right) + \ln f\left(\mathbf{y} \mid \boldsymbol{\theta}\right) - \ln f\left(\mathbf{y}\right)\right) + \\ \sum_{k = 1}^K \left(\ln s_k + \frac{1}{2} \ln 2\pi + \frac{\phi_k^2}{2s_k^2}\right)$$
+
+## Hamiltonian MCMC Algorithms, Part 2
+
+-   Since $\boldsymbol{\phi}$ does not enter the log-likelihood, its posterior distribution is the same as its normal prior distribution
+
+-   We choose starting $\left(r = 0\right)$ values for $\boldsymbol{\theta}$ somehow
+
+-   At iteration $r > 0$ of $R$, we draw each $\phi_k$ from its normal distribution and recalculate $H^{\left[r\right]} = H\left(\boldsymbol{\theta}^{\left[r - 1\right]}, \boldsymbol{\phi}^{\left[r\right]}\right)$
+
+-   Hamiltonian dynamics is a nonlinear Markov process that evolves the parameters over "time", such that potential and kinetic energy change but total energy is conserved at $H^{\left[r\right]}$
+
+-   Conservation of $H^{\left[r\right]}$ is crucial because it allows us to drop constants like $\ln f\left(\mathbf{y}\right)$, which we do not know anyway
+
+## Hamiltonian MCMC Algorithms, Part 3
+
+-   We need to solve an initial value problem that is governed by Hamilton's system of ODEs: $\frac{d\boldsymbol{\theta}}{dt} = \frac{\partial H}{\partial \boldsymbol{\phi}}$ and $\frac{d\boldsymbol{\phi}}{dt} = -\frac{\partial H}{\partial \boldsymbol{\theta}}$
+
+-   $\frac{\partial H}{\partial \boldsymbol{\phi}} = -\frac{\boldsymbol{\phi}}{\mathbf{s}}$, and although $\frac{\partial H}{\partial \boldsymbol{\theta}}$ would be tedious for humans, it is easy for computers and does not involve $\frac{\partial \ln f\left(\mathbf{y}\right)}{\partial \boldsymbol{\theta}} = \mathbf{0}$
+
+-   If both the posterior and momentum were standard normal, $\theta\left(t\right) = r \cos \left(a + t\right)$ and $\phi\left(t\right) = -r \sin\left(a + t\right)$ whose constants, $r$ and $a$, can be determined at $t = 0$
+
+-   Hamiltonian dynamics is also reversable and volume-conserving, so this process produces draws of $\boldsymbol{\theta}$ and $\boldsymbol{\phi}$ whose PDF is proportional at all times to $e^{-H\left(\boldsymbol{\theta}, \boldsymbol{\phi}\right)}$
+
+## 2D Example of Hamiltonian Dynamics
+
+```{r}
+#| echo: false
+#| webgl: true
+library(rgl)
+
+dbinorm <- function(xy, mu_X, sigma_X, mu_Y, sigma_Y, rho, log = FALSE) {
+  if (log) {
+    return(dnorm(xy[1], mean = mu_X, sd = sigma_X, log = TRUE) +
+           dnorm(xy[2], mean = mu_Y + rho * sigma_Y / sigma_X * 
+                   (xy[1] - mu_X),
+                 sd = sigma_Y * sqrt((1 + rho) * (1 - rho)), log = TRUE))
+  } else {
+    return(dnorm(xy[1], mean = mu_X, sd = sigma_X) *
+           dnorm(xy[2], mean = mu_Y + rho * sigma_Y / sigma_X * 
+                   (xy[1] - mu_X),
+                 sd = sigma_Y * sqrt((1 + rho) * (1 - rho))))
+  }
+}
+
+# gradient of log bivariate normal PDF
+g <- function(x, y, mu_X, mu_Y, sigma_X, sigma_Y, rho) {
+  beta <- rho * sigma_Y / sigma_X
+  sigma <- sigma_Y * sqrt(1 - rho^2)
+  c(x = -(x - mu_X) / sigma_X^2 - 
+      (y - (mu_Y + beta * (x - mu_X))) / sigma^2 * -beta,
+    y = -(y - (mu_Y + beta * (x - mu_X))) / sigma^2)
+}
+
+# bivariate normal PDF in log form and negated
+dbvn <- function(x, y, mu_X = 0, mu_Y = 0, 
+                 sigma_X = 1, sigma_Y = 1, rho = 0.75) {
+  return(-apply(cbind(x, y), MARGIN = 1, FUN = dbinorm, log = TRUE, 
+                mu_X = mu_X, mu_Y = mu_Y, 
+                sigma_X = sigma_X, sigma_Y = sigma_Y, rho = rho))
+}
+
+# 3D plot of dbvn. Use mouse to rotate and right-click to zoom in
+persp3d(dbvn, xlim = c(-2,2), ylim = c(-2,2), alpha = 0.5, 
+        xlab = "x", ylab = "y", zlab = "neg-log-density")
+
+# same as dbvn but without vectorization and also returns gradient wrt x
+dbvn2 <- function(initial, grad = TRUE, mu_X = 0, mu_Y = 0, 
+                  sigma_X = 1, sigma_Y = 1, rho = 0.75) {
+  x <- initial[1]; y <- initial[2]
+  out <- dbinorm(c(x, y), mu_X, mu_Y, sigma_X, sigma_Y, rho, log = FALSE)
+  if (grad) {
+    attributes(out)$grad <- g(x, y, mu_X, mu_Y, sigma_X, sigma_Y, rho)
+  }
+  return(out)
+}
+
+# source some of Radford Neal's functions 
+# see http://www.cs.utoronto.ca/~radford/GRIMS.html
+results <- sapply(c("utilities.r", "mcmc.r", "basic_hmc.r"), 
+                  FUN = function(x)
+  source(paste0("http://www.cs.toronto.edu/~radford/ftp/GRIMS-2012-06-07/", 
+                x)))
+
+set.seed(12345)
+HMC <- basic_hmc(dbvn2, initial = c(x = 0.9, y = 0.2), nsteps = 700, 
+                 step = .65, return.traj = TRUE)
+pos <- HMC$traj.q
+# starting point
+ID <- points3d(x = pos[1,1], y = pos[1,2], z = dbvn(pos[1,1], pos[1,2]), 
+               col = "green", size = 7)
+
+rglwidget() %>%
+playwidget(ageControl(births = 1:nrow(pos),
+                      ages = 1:nrow(pos),
+                      objids = ID,
+                      value = 1,
+                      x = pos[,1], y = pos[,2],
+                      z = apply(pos, 1, FUN = function(xy) 
+                        dbvn(xy[1], xy[2]))),
+           start = 1, stop = nrow(pos), step = 1, rate = 3, loop = TRUE)
+
+```
+
+## Hamiltonian MCMC Algorithms, Part 4
+
+-   The preceding Hamiltonian theory from physics presumes that time is continuous, but for MCMC, "time" is discretized
+
+-   The "leapfrog" method for solving initial-value problems works well but introduces a small amount of error each step
+
+    -   If the stepsize is sufficiently small, the error at one step tends to cancel with the error at another step
+
+    -   If the stepsize is too big, the error tends to accumulate, which can lead to a divergent transition
+
+    -   The global stepsize is tuned and for each $\phi_k$, its prior / posterior standard deviation $s_k$ is tuned to get a good $n_{eff}$ without divergent transitions
+
+## Hamiltonian MCMC Algorithms, Part 5
+
+-   In Stan, the total integration time at iteration $r$ is a random variable; i.e. the integration is stopped when the trajectories in positive time & negative time start to get closer together
+
+-   Once that happens, Stan chooses a realization of $\boldsymbol{\theta}^{\left[t\right]}$ and $\boldsymbol{\phi}^{\left[t\right]}$ with probability proportional to $f\left(\boldsymbol{\theta}^{\left[t\right]} \mid \mathbf{y}\right)$ as its proposal for iteration $r$ and then accepts that proposal or keeps the previous one by applying the Metropolis criterion
+
+-   In short, the user needs to specify $\ln f\left(\boldsymbol{\theta}\right) + \ln f\left(\mathbf{y} \mid \boldsymbol{\theta}\right)$ and the algorithm in Stan can (mostly) handle the rest
+
+## Video of [Original](http://www.stat.columbia.edu/~gelman/research/published/nuts.pdf) Stan [Algorithm](https://github.com/andrewGhazi/funstuff/blob/master/R/nuts.R)
+
+```{=html5}
+<iframe width="1120" height="630" src="https://www.youtube.com/embed/qxCQoZC0CVY" title="NUTS Animation" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+```
+## Stan Language
+
+-   Stan also includes its own computer language that we are not covering in GR5065 but it is not difficult to learn later
+
+```{stan output.var="mod", eval=FALSE}
+// This Stan program would draw from the posterior in Q1.4 of HW2
+data { // everything to the right of the | in Bayes' Rule
+  real<lower = 0> a; // shape for gamma prior on tau
+  real<lower = 0> b; // rate for gamma prior on tau
+  real<lower = 0> v; // multiple due to Okun's law
+  real m;            // value implied by Okun's law
+  real GDP;          // value reported by government
+}
+parameters { // everything to the left of the | in Bayes' Rule
+  real mu;             // true economic growth
+  real<lower = 0> tau; // precision
+}
+model { // target has been initialized to zero
+  target += normal_lpdf(GDP | mu, inv_sqrt(tau));
+  target += gamma_lpdf(tau | a, b);
+  target += normal_lpdf(mu | m, inv_sqrt(v * tau));
+} // model block essentially "returns" target
+```
+
+## Warnings You Should Be Aware Of (1)
+
+Unlike 1990s MCMC algorithms, Stan warns you when things do not go well, which you must heed
+
+1.  Divergent Transitions: This means the tuned stepsize ended up too big relative to the curvature of the log-kernel
+    -   Increase `adapt_delta` above its default value ($0.8$)
+
+    -   Use more informative priors
+2.  Hitting the maximum treedepth: This means the tuned stepsize ended up so small that it could not get all the way around the parameter space in one iteration
+    -   Increase `max_treedepth` beyond its default value of $10$
+
+## Warnings You Should Be Aware Of (2)
+
+3.  Bulk / Tail Effective Sample Size too low: This means the tuned stepsize ended up so small that adjacent draws have too much dependence
+    -   Increase the number of iterations or chains
+4.  $\widehat{R} > 1.01$: This means the chains have not converged
+    -   You could try running the chains longer, but there is probably a deeper problem
+5.  Low Bayesian Fraction of Information: This means that you posterior distribution has really extreme tails
+    -   You could try running the chains longer
