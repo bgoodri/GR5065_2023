@@ -1,0 +1,278 @@
+---
+title: "Recitation for Week06"
+author: "Prateek Jain"
+format: revealjs
+editor: visual
+execute: 
+  echo: true
+editor_options: 
+  chunk_output_type: console
+---
+
+## Introduction
+
+```{=html}
+<script type="text/x-mathjax-config">
+MathJax.Hub.Register.StartupHook("TeX Jax Ready",function () {
+  MathJax.Hub.Insert(MathJax.InputJax.TeX.Definitions.macros,{
+    cancel: ["Extension","cancel"],
+    bcancel: ["Extension","cancel"],
+    xcancel: ["Extension","cancel"],
+    cancelto: ["Extension","cancel"]
+  });
+});
+</script>
+```
+-   For 200 years, Bayesians were stumped by the denominator $$f\left(\mathbf{y}\right) = \int\limits_{-\infty}^\infty \cdots \int\limits_{-\infty}^\infty f\left(\boldsymbol{\theta}\right) f\left(\mathbf{y}\mid \boldsymbol{\theta}\right)d\theta_1 \dots d\theta_K$$
+
+-   Bayesian inference was completely general in theory since 1790 but was not, in general, practical to conduct until 1990
+
+-   Nowadays, we can use Markov Chain Monte Carlo (MCMC) to get $R$ *dependent* draws of $\boldsymbol{\theta} \mid \mathbf{y}$ without rejecting many
+
+-   The Hamiltonian physics-based MCMC algorithm in Stan generally has better $n_{eff}$ than 1990s MCMC algorithms
+
+## Autoregressive Process (of order $1$)
+
+$$
+x_t = m \left(1 - p\right) + p x_{t - 1} + \epsilon_t \thicksim \mathcal{N}\left(0, s\right)
+$$
+
+-   Implies $x_t \mid x_{t - 1}$ is $\mathcal{N}\left(m \left(1 - p\right) + p x_{t - 1}, s\right)$, which is Markovian because it does not depend on $x_{t - 2}$, etc.
+
+-   How can we simulate this process for $T$ periods from $x_0$?
+
+. . .
+
+```{r}
+AR1 <- function(x) m * (1 - p) + p * x + rnorm(1, mean = 0, sd = s)
+m <- -1; s <- 2; p <- 0.5; T <- 1000 # can choose other values
+x <- rpois(1, 10) # how you choose this does not matter asymptotically
+for (t in 1:T) x <- AR1(x)
+x
+```
+
+## Marginalization of a Markov Process
+
+$$
+f\left(x_T \mid x_0\right) = f\left(x_T \bigcap \bcancel{x_{T - 1}} \bigcap \dots \bigcap \bcancel{x_1} \mid x_0\right) = \\
+\int_{-\infty}^\infty \cdots \int_{-\infty}^\infty \prod_{t = 1}^T f\left(x_t \mid x_{t - 1}\right) dx_1 \dots dx_{T - 1}
+$$
+
+-   In the case of an AR1 model, we can do these $T - 1$ integrals and as $T \uparrow \infty$, $x_T \mid x_0 \rightarrow \mathcal{N}\left(m, \frac{s}{\sqrt{1 - p^2}}\right)$
+
+-   Nevertheless, it is easier to just simulate the process $R$ times
+
+## Simulations
+
+```{r, AR1}
+#| message: false
+#| cache: true
+library(purrr)
+R <- 10000
+p <- -p # usually makes estimate of expectation better for finite R
+x_T <- map_dbl(1:R, ~ {
+  x <- rpois(1, 10)
+  for (t in 1:T) x <- AR1(x)
+  x
+})
+```
+
+. . .
+
+```{r}
+c(avg_x = mean(x_T), exact = m)
+c(sd_x = sd(x_T), exact = s / sqrt(1 - p^2))
+```
+
+. . .
+
+-   Modern marginalization entails simulating a joint process $R \approx \infty$ times and looking only at the realizations of the random variable(s) you care about (here just $x_T$)
+
+## AR1 vs. Hamiltonian MCMC
+
+$H\left(\boldsymbol{\theta}, \boldsymbol{\phi}\right) = C -\ln f\left(\boldsymbol{\theta} \mid \mathbf{y}\right) + \sum_{k = 1}^K \left(\ln s_k + \frac{1}{2}\ln 2\pi + \frac{\phi_k}{2s_k^2}\right)$
+
+| Concept                        | Autoregressive                                            | Hamiltonian MCMC                                                                                                                                                                                                                                                   |
+|--------------------------------|-----------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| #dimensions                    | $1$ (at least here)                                       | $K$ (2 or 3 in real physics)                                                                                                                                                                                                                                       |
+| Time                           | Discrete                                                  | Continuous (discretized)                                                                                                                                                                                                                                           |
+| Randomness                     | $\epsilon_t \thicksim \mathcal{N}\left(0,s\right)$        | $\phi_k \thicksim \mathcal{N}\left(0, s_k\right)$ at $t = 0$                                                                                                                                                                                                       |
+| Updating rule in time          | $x_t = m \left(1 - p\right)\\ + p x_{t - 1} + \epsilon_t$ | $\boldsymbol{\theta}\left(t\right), \boldsymbol{\phi}\left(t\right)$ such that $\dot{\boldsymbol{\theta}}\left(t\right) = \frac{\partial H}{\partial \boldsymbol{\phi}}, \dot{\boldsymbol{\phi}}\left(t\right) = -\frac{\partial H}{\partial \boldsymbol{\theta}}$ |
+| Correlation: $t$ and $t \mp n$ | $p^n$ so sign depends on $p$                              | Usually negative for $n = 1$ and near zero otherwise                                                                                                                                                                                                               |
+
+## Economic Data from HW2
+
+```{r}
+library(dplyr)
+FRED <- "https://fred.stlouisfed.org/graph/fredgraph.csv?id="
+SERIES <- c(GDI = "A261RL1Q225SBEA",
+            GDP = "A191RL1Q225SBEA",
+            UR  = "LRUN64TTUSQ156S")
+data <- readr::read_csv(paste0(FRED, paste(SERIES, collapse = ",")),
+                        progress = FALSE, show_col_types = FALSE,
+                        na = ".") %>%
+  rename(quarter_startdate = DATE, 
+         GDI = A261RL1Q225SBEA, 
+         GDP = A191RL1Q225SBEA, 
+         UR  = LRUN64TTUSQ156S) %>% 
+  mutate(x = c(NA_real_, diff(UR))) %>% 
+  na.omit
+data
+```
+
+## Stan Program (no need to copy down)
+
+```{stan output.var="Okun"}
+data { // everything to the right of the | in Bayes' Rule
+  int<lower = 0> N; // number of observations (quarters)
+  vector[N] GDP;
+  vector[N] GDI;
+  vector[N] x;      // change in unemployment rate
+
+  // mean and standard deviation for normal prior on intercept
+  real m_intercept;
+  real<lower = 0> s_intercept;
+
+  // mean and standard deviation for normal prior on slope
+  real m_slope;
+  real<lower = 0> s_slope;
+
+  // rate (reciprocal mean) parameters for exponential priors  
+  real<lower = 0> r_Okun;
+  real<lower = 0> r_data;
+}
+parameters { // everything to the left of the | in Bayes' Rule
+  // for Okun's Law
+  real intercept;
+  real slope;
+  real<lower = 0> sigma_Okun; 
+  
+  // for reported data
+  real<lower = 0> sigma_GDP;
+  real<lower = 0> sigma_GDI;
+  vector[N] mu; // true economic growth
+}
+model { // target gets initialized to 0
+  // log-likelihood
+  target += normal_lpdf(GDP | mu, sigma_GDP);
+  target += normal_lpdf(GDI | mu, sigma_GDI);
+  
+  // priors in logarithm form
+  target += normal_lpdf(mu | intercept + slope * x, sigma_Okun);
+  target += normal_lpdf(intercept | m_intercept, s_intercept);
+  target += normal_lpdf(slope | m_slope, s_slope);
+  target += exponential_lpdf(sigma_Okun | r_Okun);
+  target += exponential_lpdf(sigma_GDP | r_data);
+  target += exponential_lpdf(sigma_GDI | r_data);
+} // returns target as the numerator of Bayes Rule
+```
+
+## Exercise: Write the Numerator in R
+
+-   Choose `m_intercept` and `s_intercept` in the normal prior for the intercept in Okun's Law, i.e. the expected value of $\mu_t$ when $x_t = 0$
+
+-   Choose `m_slope` and `s_slope` in the normal prior for the slope in Okun's Law, i.e. the expected difference in $\mu_t$ when $x_t = 1$ vs. $x_t = 0$
+
+-   Choose `r_Okun` and `r_data` in the exponential prior for the standard deviation of the error in Okun's Law and GD{PI}
+
+-   Write a R function to evaluate the numerator *in log form*
+
+```{r}
+numer <- function(intercept, slope, sigma_Okun, sigma_GDP, sigma_GDI, mu) {
+  # fill in the rest (utilizing log = TRUE arguments), return a scalar
+}
+```
+
+## Answer to Exercise
+
+```{r}
+numer <- function(intercept, slope, sigma_Okun, sigma_GDP, sigma_GDI, mu,
+                  m_intercept = 3, s_intercept = 1, 
+                  m_slope = -2, s_slope = 0.5,
+                  r_Okun = 1 / 0.5, r_data = 1 / 1.5) {
+  # logarithm of a product -> sum of logarithms
+  sum(dnorm(intercept, mean = m_intercept, sd = s_intercept, log = TRUE),
+      dnorm(slope, mean = m_slope, sd = s_slope, log = TRUE),
+      dnorm(mu, mean = intercept + slope * data$x, 
+            sd = sigma_Okun, log = TRUE),
+      dnorm(data$GDP, mean = mu, sd = sigma_GDP, log = TRUE),
+      dnorm(data$GDI, mean = mu, sd = sigma_GDI, log = TRUE),
+      dexp(sigma_Okun, rate = r_Okun, log = TRUE),
+      dexp(sigma_GDP, rate = r_data, log = TRUE),
+      dexp(sigma_GDI, rate = r_data, log = TRUE))
+}
+```
+
+## Calling the Stan MCMC Algorithm
+
+You do not need to do this yourself, but this is how you would
+
+```{r, post}
+#| message: false
+#| results: hide
+#| cache: true
+library(rstan)
+options(mc.cores = parallel::detectCores()) # usually goes faster
+post <- sampling(Okun, # In PyStan: Okun.sampling(data = ["N": ...])
+                 data = list(N = nrow(data), GDP = data$GDP, 
+                             GDI = data$GDI, x = data$x,
+                             m_intercept = 3, s_intercept = 1,
+                             m_slope = -2, s_slope = 0.5,
+                             r_Okun = 1 / 0.5, r_data = 1 / 1.5))
+```
+
+```{r}
+print(post, pars = "mu", include = FALSE) # lp__ is target from Stan
+```
+
+## Hypothesis Evaluation
+
+```{r}
+draws <- as.data.frame(post)
+select(draws, -starts_with("mu")) %>% 
+  as_tibble %>% 
+  print(n = 5)
+summarize(draws, prob = mean(sigma_GDI < sigma_GDP))
+```
+
+Thus, the posterior probability is more than $0.9$ that GDI is measured somewhat better than GDP by the government, presuming true economic growth roughly follows Okun's Law
+
+## Posterior Prediction
+
+This does not condition on the released GDP data for the 4th quarter of 2022, and thus has a lot of (legitimate) uncertainty
+
+```{r}
+#| message: false
+#| fig-show: hide
+library(ggplot2)
+x_t <- -0.19 # over the fourth quarter of 2022
+
+# draw from the model but using the updated parameter beliefs
+draws <- mutate(draws, 
+                mu_t = intercept + slope * x_t +
+                  rnorm(n(), mean = 0, sd = sigma_Okun),
+                GDP_t = rnorm(n(), mean = mu_t, sd = sigma_GDP),
+                GDI_t = rnorm(n(), mean = mu_t, sd = sigma_GDI),
+                GDO_t = (GDP_t + GDI_t) / 2)
+ggplot(draws) + # plot on next slide
+  geom_density(aes(x = GDO_t)) +
+  labs(x = "Posterior Prediction for GDO in Q4 of 2022",
+       y = "Density")
+```
+
+## Plot from Previous Slide
+
+```{r}
+#| echo: false
+ggplot(draws) + 
+  geom_density(aes(x = GDO_t)) +
+  labs(x = "Posterior Prediction for GDO in Q4 of 2022",
+       y = "Density")  
+```
+
+## Conclusion
+
+-   You need a model, which includes your prior beliefs about the unknown parameters as expressed through a PDF
+-   That model implies some numerator of Bayes Rule
+-   Provided the numerator is differentiable almost everywhere, Stan will either draw from that posterior distribution or give you warnings that it had trouble (there were none today)
+-   Once you get (correct) draws from the posterior, how you obtained them has no bearing on how you interpret them
