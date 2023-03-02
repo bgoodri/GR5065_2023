@@ -1,0 +1,362 @@
+---
+title: "Linear Models with the **rstanarm** R Package"
+author: "Ben Goodrich"
+format: revealjs
+editor: visual
+execute: 
+  echo: true
+editor_options: 
+  chunk_output_type: console
+---
+
+## Obligatory Disclosure
+
+```{=html}
+<script type="text/x-mathjax-config">
+MathJax.Hub.Register.StartupHook("TeX Jax Ready",function () {
+  MathJax.Hub.Insert(MathJax.InputJax.TeX.Definitions.macros,{
+    cancel: ["Extension","cancel"],
+    bcancel: ["Extension","cancel"],
+    xcancel: ["Extension","cancel"],
+    cancelto: ["Extension","cancel"]
+  });
+});
+</script>
+```
+-   Ben is an employee of Columbia University, which has received several research grants to develop Stan
+
+-   Ben is also a manager of GG Statistics LLC, which uses Stan
+
+-   According to Columbia University [policy](https://research.columbia.edu/content/conflict-interest-and-research), any such employee who has any equity stake in, a title (such as officer or director) with, or is expected to earn at least $\$5,000.00$ per year from a private company is required to disclose that
+
+## Introduction
+
+$$
+f\left(\boldsymbol{\theta} \mid \mathbf{y}, \dots\right) \propto f\left(\boldsymbol{\theta} \mid \dots\right) L\left(\boldsymbol{\theta}; \mathbf{y}\right)
+$$
+
+-   Bayesians *can* use the same $L\left(\boldsymbol{\theta}; \mathbf{y}\right)$ as Frequentists
+
+-   If you can use MLE to obtain $\widehat{\boldsymbol{\theta}} = \arg\max L\left(\boldsymbol{\theta}; \mathbf{y}\right)$, then you can specify priors on the elements of $\boldsymbol{\theta}$ and use Stan to obtain (many draws from) the posterior distribution of $\boldsymbol{\theta} \mid \mathbf{y}$
+
+-   The rstanarm R package uses the same syntax and likelihood functions as well-known Frequentist R packages, but adds priors (with good defaults) and passes to Stan
+
+## Economic Data from HW2
+
+```{r}
+source("macroeconomic_data.R", echo = TRUE) # from Week07/
+tail(data)
+```
+
+## Notation for Generative Models
+
+::: columns
+::: {.column width="55%"}
+Math Notation $$
+\forall n: y_n \equiv \mu + \beta \left(x_n - \overline{x}\right) + \epsilon_n \\
+\forall n: \epsilon_n \thicksim \mathcal{N}\left(0,\sigma\right) \\
+\sigma \thicksim \mathcal{E}\left(r\right) \\
+\mu \thicksim \mathcal{N}\left(m_{\mu}, s_{\mu}\right) \\
+\beta \thicksim \mathcal{N}\left(m_{\beta}, s_{\beta}\right)
+$$But draw from bottom to top
+:::
+
+::: {.column width="45%"}
+R Code for Okun's Law
+
+```{r}
+N <- nrow(data)
+R <- 10^4
+x_bar <- mean(data$x)
+draws <- 
+  tibble(
+    beta = rnorm(R, -2, 1),
+    mu = rnorm(R, 3, .5),
+    sigma = rexp(R, .5)
+  ) %>% 
+  rowwise %>% 
+  summarize(
+    epsilon = 
+      rnorm(N, 0, sigma),
+    y = mu + beta *
+        (data$x - x_bar) + 
+        epsilon
+  ) %>% 
+  ungroup
+```
+:::
+:::
+
+## Check the Prior Predictions Logically
+
+```{r}
+#| message: false
+library(ggplot2)
+ggplot(draws) + geom_density(aes(y)) + xlim(-15, 15)
+```
+
+## Example Stan Program
+
+```{stan output.var="Okun", eval = FALSE}
+data {
+  int<lower = 0> N;
+  vector[N] x;
+  vector[N] y;
+  real m_mu;
+  real<lower = 0> s_mu;
+  real m_beta;
+  real<lower = 0> s_beta;
+  real<lower = 0> r_sigma;
+}
+transformed data {
+  real x_bar = mean(x);
+  vector[N] x_ = x - x_bar;
+}
+parameters {
+  real mu;
+  real beta;
+  real<lower = 0> sigma;
+}
+model {
+  target += normal_lpdf(y | mu + beta * x_, sigma);
+  target += exponential_lpdf(sigma | r_sigma);
+  target += normal_lpdf(beta | m_beta, s_beta);
+  target += normal_lpdf(mu | m_mu, s_mu);
+}
+generated quantities {
+  real alpha = mu + beta * x_bar;
+} // intercept relative to raw predictors
+```
+
+## The `stan_glm` Function
+
+```{r}
+#| message: false
+library(rstanarm)
+options(mc.cores = parallel::detectCores())
+post <- stan_glm(GDO ~ x, data = data, seed = 12345,
+                 prior_intercept = normal(3, 0.5), # on mu
+                 prior = normal(-2, 1),            # on beta
+                 prior_aux = exponential(0.5))     # on sigma
+```
+
+```{r}
+plot(post, plotfun = "areas_ridges")
+```
+
+## Output of `print`
+
+```{r}
+post # intercept is relative to raw predictors
+```
+
+. . .
+
+These are not "the" point estimates
+
+## Credible Intervals
+
+```{r}
+posterior_interval(post, level = 0.9)
+```
+
+. . .
+
+These are not confidence intervals
+
+## Inference About Direction
+
+```{r}
+draws <- as.data.frame(post)
+summarize(draws, prob = mean(x > -4))
+```
+
+. . .
+
+This is not a $p$-value for the null hypothesis that $\beta = -4$
+
+## Posterior Predictions for Q4 of 2022
+
+```{r}
+x <- -0.19 # for Q4 of 2022
+y <- draws$`(Intercept)` + draws$x * x +
+  rnorm(nrow(draws), mean = 0, sd = draws$sigma)
+ggplot() + geom_density(aes(y))
+```
+
+## The `posterior_predict` Function
+
+```{r}
+PPD <- posterior_predict(post, newdata = tibble(x = -0.19))
+print(as_tibble(PPD), n = 9) # has as many columns as rows in newdata
+```
+
+. . .
+
+By default, `posterior_predict` generates predictions for the data (after dropping rows with `NAs` on the active variables) that `post` conditioned on, in which case it should not be too inconsistent with the observed outcome.
+
+## ShinyStan
+
+-   ShinyStan can be launched on an object produced by rstanarm via
+
+```{r}
+#| eval: false
+launch_shinystan(post)
+```
+
+-   A webapp will open in your web browser that helps you visualize the posterior distribution and diagnose problems
+
+. . .
+
+-   All of ShinyStan's plots can be recreated with R code, e.g.
+
+```{r}
+#| fig-show: hide
+pp_check(post, plotfun = "intervals") + # a ggplot object
+  labs(x = "Quarter Since 1970", y = "Predictions of GDO")
+```
+
+## Plot from Previous Slide
+
+```{r}
+#| echo: false
+pp_check(post, plotfun = "intervals") + # a ggplot object
+  labs(x = "Quarter Since 1970", y = "Predictions of GDO")
+
+```
+
+## IQ of Three Year-Olds
+
+```{r}
+data(kidiq, package = "rstanarm")
+colnames(kidiq)
+```
+
+. . .
+
+$$
+\forall n: y_n \equiv \mu + \beta_1 \mbox{HS}_n + \beta_2 \mbox{IQ}_n + \beta_3 \mbox{AGE}_n + \epsilon_n \\
+\forall n: \epsilon_n \thicksim \mathcal{N}\left(0,\sigma\right) \\
+\sigma \thicksim \mathcal{E}\left(r\right) \\
+\mu \thicksim \mathcal{N}\left(m_0, s_0\right) \\
+\forall k: \beta_k \thicksim \mathcal{N}\left(m_k, s_k\right)
+$$
+
+. . .
+
+What prior hyperparameters would you choose?
+
+## Prior Predictive Distribution
+
+```{r}
+prior <- stan_glm(kid_score ~ mom_hs + I(mom_iq / 10) + I(mom_age / 10), 
+                  data = kidiq, prior_PD = TRUE, # don't condition on y
+                  prior_intercept = normal(100, 10),       # on mu
+                  prior = normal(c(5, 10, 0), c(2, 5, 3)), # on betas
+                  prior_aux = exponential(1 / 10))         # on sigma
+PPD <- posterior_predict(prior) # actually matrix of prior predictions
+ggplot() + geom_density(aes(x = c(PPD))) + xlim(0, 200)
+```
+
+## Posterior Distribution
+
+```{r}
+post <- update(prior, prior_PD = FALSE) # now condition on y
+post # intercept is relative to raw predictors
+```
+
+. . .
+
+Do not say that `mom_age` is statistically insignificant and / or eliminate it from the model simply because it may be negative
+
+## Nonlinear Functions of Predictors
+
+$$
+\forall n: y_n \equiv \mu + \beta_1 \mbox{HS}_n + \gamma_n \mbox{IQ}_n + \lambda_n \mbox{AGE}_n + \epsilon_n \\ 
+\forall n: \gamma_n \equiv \beta_2 + \beta_3 \mbox{HS}_n \\
+\forall n: \lambda_n \equiv \beta_4 + \beta_5 \mbox{AGE}_n \\
+\forall n: \epsilon_n \thicksim \mathcal{N}\left(0,\sigma\right) \\
+\sigma \thicksim \mathcal{E}\left(r\right) \\
+\mu \thicksim \mathcal{N}\left(m_0, s_0\right) \\
+\forall k: \beta_k \thicksim \mathcal{N}\left(m_k, s_k\right)
+$$
+
+. . .
+
+After substituting / distributing, we get a "linear" model where$\mathbb{E}y_n \equiv \mu + \beta_1 \mbox{HS}_n + \beta_2 \mbox{IQ}_n + \beta_3 \mbox{HS}_n\mbox{IQ}_n + \beta_4 \mbox{AGE}_n + \beta_5 \mbox{AGE}_n^2$
+
+## Posterior Distribution of `stan_lm` 
+
+```{r}
+post <- stan_lm(kid_score ~ mom_hs * I(mom_iq / 10) + 
+                   poly(mom_age / 10, degree = 2, raw = TRUE), 
+                 data = kidiq, adapt_delta = 0.99, seed = 12345,
+                 prior_intercept = normal(100, 10),
+                 prior = R2(0.25, what = "median"))
+                 # maximum entropy for beta given expected log R^2
+```
+
+```{r}
+post
+```
+
+## Interpretation of Age Effect
+
+```{r}
+draws <- as_tibble(post)
+colnames(draws)
+```
+
+. . .
+
+```{r}
+#| fig-show: hide
+age_effect <- select(kidiq, mom_age) %>% 
+  rowwise %>% 
+  summarize(mom_age, 
+            z = pull(draws, 4) * mom_age + pull(draws, 5) * mom_age^2) %>% 
+  ungroup %>% 
+  mutate(z = z - mean(z))
+ggplot(age_effect, aes(x = as.factor(mom_age), y = z)) +
+  geom_boxplot() # # plot on next slide
+```
+
+## Plot from Previous Slide
+
+```{r}
+#| echo: false
+ggplot(age_effect, aes(x = as.factor(mom_age), y = z)) +
+  geom_boxplot() + 
+  labs(x = "Mom's age",
+       y = "Expected Kid's IQ, relative to average")
+```
+
+## Warnings You Should Be Aware Of (1)
+
+Unlike 1990s MCMC algorithms, Stan warns you when things do not go well, which you must heed
+
+1.  Divergent Transitions: This means the tuned stepsize ended up too big relative to the curvature of the log-kernel
+    -   Increase `adapt_delta` above its default value ($0.8$)
+
+    -   Use more informative priors
+2.  Hitting the maximum treedepth: This means the tuned stepsize ended up so small that it could not get all the way around the parameter space in one iteration
+    -   Increase `max_treedepth` beyond its default value of $10$
+
+## Warnings You Should Be Aware Of (2)
+
+3.  Bulk / Tail Effective Sample Size too low: This means the tuned stepsize ended up so small that adjacent draws have too much dependence
+    -   Increase the number of iterations or chains
+4.  $\widehat{R} > 1.01$: This means the chains have not converged
+    -   You could try running the chains longer, but there is probably a deeper problem
+5.  Low Bayesian Fraction of Information: This means that you posterior distribution has really extreme tails
+    -   You could try running the chains longer
+
+## Midterm Exam
+
+-   No new homework this week
+
+-   Midterm will be Thursday and will cover through linear models with MCMC
+
+-   You will need to upload a .qmd and .pdf
+
+-   Recitation and office hours as usual on Tuesday
