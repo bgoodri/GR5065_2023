@@ -1,0 +1,186 @@
+---
+title: "Recitation for Week07"
+author: "Ben Goodrich"
+format: revealjs
+editor: visual
+execute: 
+  echo: true
+editor_options: 
+  chunk_output_type: console
+---
+
+## Introduction
+
+```{=html}
+<script type="text/x-mathjax-config">
+MathJax.Hub.Register.StartupHook("TeX Jax Ready",function () {
+  MathJax.Hub.Insert(MathJax.InputJax.TeX.Definitions.macros,{
+    cancel: ["Extension","cancel"],
+    bcancel: ["Extension","cancel"],
+    xcancel: ["Extension","cancel"],
+    cancelto: ["Extension","cancel"]
+  });
+});
+</script>
+```
+-   Nowadays, we can use Markov Chain Monte Carlo (MCMC) to get $R$ *dependent* draws of $\boldsymbol{\theta} \mid \mathbf{y}$ without rejecting many
+-   Bayesians *can* use the same (log-)likelihood functions as Frequentists, which we will do for most of this semester
+-   The rstanarm package leverages conventional R syntax, but uses Stan to obtain posterior draws for regression models
+-   Many examples at <https://avehtari.github.io/ROS-Examples/>
+-   We will utilize one today; execute this once to get the data:
+
+```{r}
+#| eval: false
+remotes::install_github("avehtari/ROS-Examples", subdir = "rpackage")
+```
+
+## <https://tinyurl.com/BreadAndPeace>
+
+-   Doug Hibbs proposed a "Bread and Peace" model where the percentage of votes received by a "generalized incumbent" Presidential candidate depends on past per-capita income growth and the number of deaths in "unnecessary" wars
+
+-   Hilary Clinton was a "generalized incumbent" in 2016 since she was of the same party as the outgoing President Obama
+
+```{r}
+data("hibbs", package = "rosdata") # installed on previous slide
+dim(hibbs)      # every four years from 1952 to 2012
+colnames(hibbs) # we are ignoring the Peace part of Hibbs' model
+```
+
+## Notation for Generative Models
+
+::: columns
+::: {.column width="55%"}
+Math Notation $$
+\forall n: y_n \equiv \alpha + \beta x_n + \epsilon_n \\
+\forall n: \epsilon_n \thicksim \mathcal{N}\left(0,\sigma\right) \\
+\sigma \thicksim \mathcal{E}\left(r\right) \\
+\alpha \equiv \mu - \beta \overline{x} \\
+\mu \thicksim \mathcal{N}\left(m_{\mu}, s_{\mu}\right) \\
+\beta \thicksim \mathcal{N}\left(m_{\beta}, s_{\beta}\right)
+$$What would you choose for $m_\beta$, $s_\beta$, $m_\mu$, $s_\mu$, and $r$ in this model?
+:::
+
+::: {.column width="45%"}
+::: fragment
+R Code for Bread Model
+
+```{r}
+library(dplyr)
+R <- 10^4
+xbar <- mean(hibbs$growth)
+draws <- 
+  tibble(
+    beta = rnorm(R, 2, 1),
+    mu = rnorm(R, 50, 2),
+    alpha = mu - beta * xbar,
+    sigma = rexp(R, .25)
+  ) %>% 
+  rowwise %>% 
+  summarize(
+    epsilon = rnorm(
+      nrow(hibbs), 0, sigma),
+    y = alpha + beta * 
+      hibbs$growth + epsilon
+  ) %>% 
+  ungroup
+```
+:::
+:::
+:::
+
+## Check the Prior Predictions Logically
+
+```{r}
+#| message: false
+library(ggplot2); ggplot(draws) + geom_density(aes(y)) + xlim(0, 100)
+```
+
+## Posterior Draws Summarized
+
+```{r}
+library(rstanarm) # type this chunk
+options(mc.cores = parallel::detectCores())       # usually faster
+post <- stan_glm(vote ~ growth, data = hibbs,
+                 prior_intercept = normal(50, 2), # on mu
+                 prior = normal(2, 1),            # on beta
+                 prior_aux = exponential(0.25))   # on sigma
+```
+
+. . .
+
+```{r}
+post # these are not "the" estimates but describe the 4000 estimates
+```
+
+## Posterior Draws Plotted
+
+```{r}
+plot(post, plotfun = "areas_ridges") # better than reporting medians
+```
+
+## Posterior Predictions of the Past {.build}
+
+```{r}
+draws <- rename(as_tibble(post), alpha = `(Intercept)`, beta = growth)
+nrow(draws) # we have been calling this R
+```
+
+. . .
+
+```{r}
+draws <- full_join(draws, hibbs, by = character()) # a "cross-join"
+nrow(draws) # each of the R parameter draws has been copied N times
+colnames(draws)
+```
+
+. . .
+
+```{r}
+#| fig-show: hide
+draws %>%
+  mutate(epsilon = rnorm(n(), mean = 0, sd = sigma),
+         y = alpha + beta * growth + epsilon) %>% 
+ggplot(aes(x = as.factor(growth))) + # plot on next slide
+  geom_boxplot(aes(y = y)) +
+  geom_point(aes(y = vote), color = "red") +
+  labs(x = "Per Capital Income Growth",
+       y = "Predicted Vote Percentage")
+```
+
+## Plot from Previous Slide
+
+```{r}
+#| echo: false
+draws %>%
+  mutate(epsilon = rnorm(n(), mean = 0, sd = sigma),
+         y = alpha + beta * growth + epsilon) %>% 
+ggplot(aes(x = as.factor(growth))) +
+  geom_boxplot(aes(y = y)) +
+  geom_point(aes(y = vote), color = "red") +
+  labs(x = "Per Capital Income Growth",
+       y = "Predicted Vote Percentage")
+```
+
+## Posterior Predictions of the Future
+
+```{r}
+Hillary <- posterior_predict(post, newdata = tibble(growth = 2))
+dim(Hillary)
+mean(Hillary > 50)
+```
+
+. . .
+
+-   Hibbs' "Bread" model would have given the generalized incumbent, Hillary Clinton, at least a $\frac{2}{3}$ chance of winning the popular vote against Donald Trump in 2016 on the basis of 2% annual economic growth during Obama's second term
+
+-   To compute the probability of Clinton winning the electoral college, you would have to predict on a state-by-state basis, sum simulated electoral votes, and compute the proportion of simulations where Clinton gets at least $270$
+
+## Conclusion
+
+-   The `stan_glm` function uses the same syntax (see `?formula`) and likelihood (Gaussian by default) as `glm`
+
+-   Thus, `stan_glm` can easily include multiple predictors, interactions, and other non-linear functions of predictors
+
+-   `stan_glm` yields $R$ (by default 4000) posterior draws and you should use all of them for prediction and inference, rather than settling for just a mean or median
+
+-   `stan_lm` takes a prior on the intercept --- relative to centered predictors --- and a prior guess of the $R^2$ to imply a maximum entropy prior on the coefficients (and $\sigma$), which is useful when specifying priors individually is difficult
