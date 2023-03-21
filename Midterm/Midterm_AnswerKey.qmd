@@ -38,7 +38,7 @@ then we can use dplyr to draw from the joint distribution of parameters and outc
 #| message: false
 library(dplyr)
 m_0 <- mean(France$turnout_2001)
-s_0 <- 6
+s_0 <- 3
 m_1 <- 1
 s_1 <- 0.75
 m_2 <- 0
@@ -61,7 +61,8 @@ draws <- tibble(beta_1 = rnorm(R, mean = m_1, sd = s_1),
   rowwise %>% 
   summarize(gamma = beta_1 + beta_3 * France$log_Ratio,
             epsilon = rnorm(nrow(France), mean = 0, sd = sigma),
-            y = alpha + gamma * France$PR + beta_2 * France$log_Ratio) %>% 
+            y = alpha + gamma * France$PR + 
+              beta_2 * France$log_Ratio + epsilon) %>% 
   ungroup
 ```
 
@@ -72,10 +73,11 @@ library(ggplot2)
 ggplot(draws) +
   geom_density(aes(x = y), adjust = 3) + 
   geom_vline(aes(xintercept = m_0), color = "red") + 
+  xlim(0, 100) + 
   labs(x = "Percent Turnout")
 ```
 
-This prior predictive distribution looks reasonable because it is centered at the average turnout in $2001$ (red line), with no predictions that are negative or greater than $100$, which would be inappropriate for a percentage. Moreover, the range in $2001$
+This prior predictive distribution looks reasonable because it is centered at the average turnout in $2001$ (red line), with few predictions that are negative or greater than $100$, which would be inappropriate for a percentage. Moreover, the range in $2001$
 
 ```{r}
 range(France$turnout_2001)
