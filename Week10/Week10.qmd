@@ -122,7 +122,7 @@ library(ggplot2); ggplot(draws) + geom_density(aes(beta)) + xlim(-4,4)
 
 ## Loss Functions
 
--   Mean-squared error (in training): $\frac{1}{N_2} \sum_{n = 1}^{N_2} \left(y_n - \eta_n\right)^2$
+-   Mean-squared error (in testing): $\frac{1}{N_2} \sum_{n = 1}^{N_2} \left(y_n - \eta_n\right)^2$
 
 -   MSE is proportional to a Gaussian log-density (given $\sigma$): $-N_2\log\left(\sigma \sqrt{2\pi}\right) - \frac{1}{2 \sigma^2}\sum_{n = 1}^{N_2}\left(y_n - \eta_n\right)^2$
 
