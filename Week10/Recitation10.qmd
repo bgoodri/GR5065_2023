@@ -1,0 +1,209 @@
+---
+title: "Recitation for Week10"
+author: "Prateek Jain"
+format:
+  revealjs:
+    embed-resources: true
+    self-contained-math: true
+editor: visual
+execute: 
+  echo: true
+editor_options: 
+  chunk_output_type: console
+---
+
+## Introduction
+
+```{=html}
+<script type="text/x-mathjax-config">
+MathJax.Hub.Register.StartupHook("TeX Jax Ready",function () {
+  MathJax.Hub.Insert(MathJax.InputJax.TeX.Definitions.macros,{
+    cancel: ["Extension","cancel"],
+    bcancel: ["Extension","cancel"],
+    xcancel: ["Extension","cancel"],
+    cancelto: ["Extension","cancel"]
+  });
+});
+</script>
+```
+-   Supervised Learning is geared toward choosing a modeling procedure that predicts future / testing data better than MLE
+-   Bayesians can also generate predictions of future data that are even better calibrated than Supervised Learning:
+    -   Bayesian propagate uncertainty in $\boldsymbol{\theta}$ through to $Y \mid \boldsymbol{\theta}$
+    -   Bayesians should not split into training and testing so that the posterior given the entire data is as precise as possible
+    -   Bayesians can use leave-one-out cross-validation (equivalent to $K$-fold with $K = N$ but can estimate the ELPD without refitting $N$ times) to choose among models
+
+## Data on Well Switching (again)
+
+```{r}
+library(dplyr)
+data("wells", package = "rstanarm") # do this!
+wells <- mutate(wells, dist = dist / 100)   # meters are bad units
+X <- model.matrix(switch ~ ., data = wells) # GLM with 4 predictors
+X <- X[ , -1] # drop (Intercept) that is included by default
+# subtract average from each of the 4 columns
+X <- sweep(X, MARGIN = 2, STATS = colMeans(X), FUN = `-`)
+colnames(X)
+```
+
+-   `switch` is the outcome
+
+-   `arsenic` is the level of arsenic in the current well
+
+-   `dist` is the distance (in $100$ meters) to the nearest safe well
+
+-   `assoc` indicates involvement in community associations
+
+-   `educ` is years of education by the head of the household
+
+## Binary Logit a la McElreath
+
+::: columns
+::: {.column width="42%"}
+Math Notation $\begin{eqnarray*} \forall n: y_n & \thicksim & \mathcal B\left(1, \mu_n\right) \\ \forall n: \mu_n & \equiv & \frac{1}{1 + e^{-\eta_n}}  \\ \forall n: \eta_n & \equiv & \alpha + \sum_{k = 1}^K \beta_k x_{nk} \\ \alpha & \equiv & \gamma - \sum_{k = 1}^K \beta_k \overline{x}_k \\ \gamma & \thicksim & \mathcal{N}\left(m_0, s_0\right) \\ \forall k: \beta_k & \thicksim & \mathcal{N}\left(m_k, s_k\right) \end{eqnarray*}$
+:::
+
+::: {.column width="58%"}
+::: fragment
+Code Outline to Draw Parameters
+
+```{r}
+#| eval: false
+# inverse CDF transformation
+m_0 <- qlogis(`?`) 
+s_0 <- `??`
+m <- 
+  c(`???`,     # arsenic
+    `????`,    # distance
+    `?????`,   # assoc
+    `??????`)  # educ
+s <- `???????` # used for all betas
+
+R <- 1000
+draws <- 
+  tibble(gamma  = rnorm(R, m_0, s_0),
+         beta_1 = rnorm(R, m[1], s),
+         beta_2 = rnorm(R, m[2], s),
+         beta_3 = rnorm(R, m[3], s),
+         beta_4 = rnorm(R, m[4], s))
+```
+
+How would you draw predictions?
+:::
+:::
+:::
+
+## Prior Predictive Distribution
+
+```{r, include = FALSE}
+m_0 <- qlogis(0.3)
+s_0 <- 0.4
+m <- c(1 / 3, -1 / 5, 1 / 10, 1 / 10)
+s <- 0.25
+R <- 1000
+draws <- 
+  tibble(gamma  = rnorm(R, m_0, s_0),
+         beta_1 = rnorm(R, m[1], s),
+         beta_2 = rnorm(R, m[2], s),
+         beta_3 = rnorm(R, m[3], s),
+         beta_4 = rnorm(R, m[4], s))
+```
+
+```{r}
+draws <- rowwise(draws) %>% # for each realization of parameters
+  # columns X are already mean deviated so use gamma for the intercept
+  summarize(eta = gamma + beta_1 * X[ , 1] +
+              beta_2 * X[ , 2] + beta_3 * X[ , 3] + beta_4 * X[ , 4],
+            mu = plogis(eta), # 1 / (1 + exp(-eta))
+            y = rbinom(nrow(X), size = 1, prob = mu)) %>% # Bernoullis
+  ungroup
+```
+
+. . .
+
+What do you anticipate this plot will look like for your generative model? What would be (un)reasonable?
+
+```{r}
+#| fig-show: hide
+library(ggplot2)
+ggplot(draws) + # plot on next slide
+  geom_density(aes(x = mu)) +
+  labs(x = "Probability of Switching",
+       y = "Density")
+```
+
+## Previous Plot (yours is $\bigcup$-shaped)
+
+```{r}
+#| echo: false
+ggplot(draws) + 
+  geom_density(aes(x = mu)) +
+  labs(x = "Probability of Switching",
+       y = "Density")  
+```
+
+## Posterior Distribution
+
+```{r}
+library(rstanarm)
+options(mc.cores = parallel::detectCores())
+```
+
+```{r, post}
+#| cache: true
+
+post <- stan_glm(switch ~ .,   # . means everything but switch  
+                 data = wells,
+                 family = binomial(link = "logit"),
+                 prior_intercept = normal(m_0, s_0), # on gamma
+                 prior = normal(m, s))               # on betas
+
+as_tibble(post) # (Intercept) is alpha, not gamma
+```
+
+## Plot of Posterior Margins (in $\eta$ units)
+
+```{r}
+plot(post, plotfun = "areas") # (Intercept) is alpha, not gamma
+```
+
+## Expected Log Predictive Density
+
+-   If we were to observe another $N$ people in the future, what is the ELPD when estimated via PSISLOOCV?
+
+```{r}
+(loo_logit <- loo(post, save_psis = TRUE))
+```
+
+## Model Comparison
+
+-   It is disturbingly common to see a Gaussian likelihood used in situations where $\Omega = \{0,1\}$ because OLS estimates are consistent as $N \uparrow \infty$
+
+```{r}
+m_0 <- m_0 * 1.6; s_0 <- s_0 * 1.6; m <- m * 1.6; s <- s * 1.6
+post_gaussian <- update(post, family = gaussian, 
+                        prior_aux = exponential(1))
+loo_gaussian <- loo(post_gaussian, save_psis = TRUE)
+loo_compare(list(logit = loo_logit, gaussian = loo_gaussian))
+```
+
+. . .
+
+-   Ergo, a logit model is expected to predict future data much better than a Gaussian model simply by virtue of the fact that the former predicts in $\Omega = \{0,1\}$ and the latter in $\mathbb{R}$
+
+## Maximum Overfitting (a.k.a. MLE)
+
+```{r}
+# log-likelihood irrespective of the parameters, weighted by posterior
+loo_logit$estimates["elpd_loo", "Estimate"]
+logLik(glm(switch ~ ., data = wells, family = binomial)) # at MLEs
+```
+
+-   The log-likelihood at the parameters that maximize it, $\ell\left(\widehat{\alpha}, \widehat{\boldsymbol{\beta}}; \mathbf{y}\right) = \sum_{n = 1}^N \left[y_n \ln \widehat{\mu}_n + \left(1 - y_n\right) \ln\left(1 - \widehat{\mu}_n\right)\right]$ is greater than a model's ELPD irrespective of the parameters, $$\mbox{ELPD} = \sum_{n = 1}^N \int_\Omega \ln \int_\Theta f\left(y_{N + n} \mid \boldsymbol{\theta}\right) f\left(\boldsymbol{\theta} \mid \mathbf{y}\right) d\boldsymbol{\theta} dy_{N + n}$$
+
+-   Overfitting phenomenon is primarily due to optimization
+
+## Conclusion
+
+-   MLE finds the parameters such that the most likely sample of size $N$ to observe is the sample that actually was observed, so the expected log density given the MLEs of any other sample of size $N$ is worse
+-   Supervised Learning combats this problem by penalizing a log-likelihood function to obtain a different optimum and usually better predictions of future / testing data
+-   Bayesians typically do not inflict this problem on themselves because they evaluate the model's ELPD irrespective of the parameters, rather than only at $\widehat{\boldsymbol{\theta}}$. The estimated ELPD provides a principled way to choose between models.
