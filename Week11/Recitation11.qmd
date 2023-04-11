@@ -1,0 +1,224 @@
+---
+title: "Recitation for Week11"
+author: "Prateek Jain"
+format:
+  revealjs:
+    embed-resources: true
+    self-contained-math: true
+editor: visual
+execute: 
+  echo: true
+editor_options: 
+  chunk_output_type: console
+---
+
+## Introduction
+
+```{=html}
+<script type="text/x-mathjax-config">
+MathJax.Hub.Register.StartupHook("TeX Jax Ready",function () {
+  MathJax.Hub.Insert(MathJax.InputJax.TeX.Definitions.macros,{
+    cancel: ["Extension","cancel"],
+    bcancel: ["Extension","cancel"],
+    xcancel: ["Extension","cancel"],
+    cancelto: ["Extension","cancel"]
+  });
+});
+</script>
+```
+-   The brms package allows you to specify many more types of models than rstanarm because brms generates Stan code from R syntax at runtime
+-   It is even more important that you understand what a model is before trying to draw from the posterior distribution of the parameters using brms
+-   Pull from GitHub and set the working directory to Week11
+
+## Data on Dutch Elections in 1989
+
+```{r}
+library(dplyr)
+data("Nethvote", package = "MCMCpack") # may need to install from CRAN
+X <- model.matrix(vote ~ relig + urban + distD66 + distPvdA + 
+                    distVVD + distCDA, data = Nethvote) 
+X <- X[ , -1] # drop (Intercept) that is included by default
+# subtract average from each of the 4 columns
+X <- sweep(X, MARGIN = 2, STATS = colMeans(X), FUN = `-`)
+colnames(X)
+```
+
+-   `vote` is the outcome and has unordered levels for each of four political parties: `CDA`, `D66`, `PvdA`, and `VVD`
+
+-   `dist*` is the party's ideological distance from voter. Let's suppose that these only affect the utility for the party in question and that the coefficient is the same across parties.
+
+-   See `help(Nethvote, package = "MCMCpack")`
+
+## Categorical Logit Model
+
+$\begin{eqnarray*} \forall n: y_n & \equiv & \arg\max_j \eta_{nj} + \epsilon_{nj} \\ \forall n,j: \epsilon_{nj} & \thicksim & \mbox{Gumbel}\left(0,1\right) \\ \forall n: \eta_{n1} & \equiv & \lambda D_{n1} \\ \forall n,j > 1: \eta_{nj} & \equiv & \gamma_j + \lambda D_{nj} + \sum_{k = 1}^K \beta_{kj} \left(x_{nk} - \overline{x}_k\right) \\ \forall j > 1: \gamma_j & \thicksim & \mathcal{N}\left(m_{0j}, s_{0j}\right) \\ \forall k,j > 1: \beta_{kj} & \thicksim & \mathcal{N}\left(m_{kj}, s_{kj}\right) \\ \lambda & \thicksim & \mathcal{N}\left(m_\lambda, s_\lambda\right) \end{eqnarray*}$
+
+-   Remember that $j = 1$ is a baseline, so it does not have an intercept or predictors, except for its distance to voter $n$
+
+## Drawing the Parameters
+
+Repeatedly using `group_by` is clever but obfuscates what is going on, so now we will just postfix specific parameters by `_j`
+
+```{r}
+R <- 1000
+pars <- tibble(lambda = rnorm(R, mean = -1, sd = 0.5),
+               gamma_1 = 0,      # for identification
+               gamma_2 = rnorm(R, mean = 0, sd = 0.5),
+               gamma_3 = rnorm(R, mean = 0, sd = 0.5),
+               gamma_4 = rnorm(R, mean = 0, sd = 0.5),
+               beta_relig_1 = 0, # for identification
+               beta_relig_2 = rnorm(R, mean = 0, sd = 0.25),
+               beta_relig_3 = rnorm(R, mean = 0, sd = 0.25),
+               beta_relig_4 = rnorm(R, mean = 0, sd = 0.25),
+               beta_urban_1 = 0, # for identification
+               beta_urban_2 = rnorm(R, mean = 0, sd = 0.25),
+               beta_urban_3 = rnorm(R, mean = 0, sd = 0.25),
+               beta_urban_4 = rnorm(R, mean = 0, sd = 0.25))
+```
+
+. . .
+
+How would you draw $\eta_{nj}$ for each $n$ and $j$ and then $y_n$?
+
+## Prior Predictive Distribution
+
+```{r}
+relig <- X[ , "relig"]; urban <- X[ , "urban"]; D <- X[ , -(1:2)]
+N <- nrow(X)                                  # D has 4 columns
+(draws <- rowwise(pars) %>% 
+  summarize(eta_1 = lambda * D[ , 1],
+            eta_2 = gamma_2 + lambda * D[ , 2] + 
+              beta_relig_2 * relig + beta_urban_2 * urban,
+            eta_3 = gamma_3 + lambda * D[ , 3] + 
+              beta_relig_3 * relig + beta_urban_3 * urban,
+            eta_4 = gamma_4 + lambda * D[ , 4] + 
+              beta_relig_4 * relig + beta_urban_4 * urban,
+            util_1 = eta_1 - log(-log(runif(N))), # Gumbel
+            util_2 = eta_2 - log(-log(runif(N))),
+            util_3 = eta_3 - log(-log(runif(N))),
+            util_4 = eta_4 - log(-log(runif(N))),
+            y = apply(cbind(util_1, util_2, util_3, util_4),
+                      MARGIN = 1, FUN = which.max)) %>% 
+  ungroup
+)
+```
+
+## Plotting the Prior Predictions
+
+```{r}
+#| fig-show: hide
+draws <- select(draws, -starts_with("eta_")) %>% 
+  tidyr::pivot_longer(cols = starts_with("util_"), 
+                      names_to = "party", names_prefix = "util_",
+                      values_to = "utility")
+print(draws, n = 8)
+```
+
+```{r}
+#| fig-show: hide
+library(ggplot2)
+ggplot(draws) + # plot on next slide
+  geom_density(aes(x = utility, color = party)) + facet_wrap(~ y)
+```
+
+What do you anticipate this plot will look like?
+
+## Plot from Previous Slide
+
+```{r}
+#| echo: false
+ggplot(draws) +
+  geom_density(aes(x = utility, color = party)) +
+  facet_wrap(~ y)
+```
+
+## Default Priors (do not use them)
+
+```{r}
+library(brms)
+options(mc.cores = parallel::detectCores())
+get_prior(vote ~ relig + urban + 
+            distCDA + distD66 + distPvdA + distVVD,
+          data = Nethvote, family = categorical)
+```
+
+## Exclusion Restrictions
+
+To not use ideological distance to party $j$ when modeling party $j^\prime \neq j$, do like
+
+```{r}
+exclusions <- # you can execute source("exclusions.R")
+  prior(constant(0), class = "b", coef = "distCDA",  dpar = "muD66") + 
+  prior(constant(0), class = "b", coef = "distPvdA", dpar = "muD66") +
+  prior(constant(0), class = "b", coef = "distVVD",  dpar = "muD66") +
+  prior(constant(0), class = "b", coef = "distCDA",  dpar = "muPvdA") + 
+  prior(constant(0), class = "b", coef = "distD66",  dpar = "muPvdA") +
+  prior(constant(0), class = "b", coef = "distVVD",  dpar = "muPvdA") +
+  prior(constant(0), class = "b", coef = "distCDA",  dpar = "muVVD") + 
+  prior(constant(0), class = "b", coef = "distD66",  dpar = "muVVD") +
+  prior(constant(0), class = "b", coef = "distPvdA", dpar = "muVVD")
+```
+
+## Priors
+
+It is not currently possible to restrict $\lambda$ to be the same for all $j$, nor is it possible to include $\lambda \times$ distance for $j = 1$. So, we will just do
+
+```{r}
+my_prior <- # you can execute source("my_prior.R")
+  prior(normal(0, 0.50), class = "Intercept", dpar = "muD66") + 
+  prior(normal(0, 0.50), class = "Intercept", dpar = "muPvdA") + 
+  prior(normal(0, 0.50), class = "Intercept", dpar = "muVVD") + 
+  prior(normal(0, 0.25), class = "b", dpar = "muD66") + 
+  prior(normal(0, 0.25), class = "b", dpar = "muPvdA") + 
+  prior(normal(0, 0.25), class = "b", dpar = "muVVD") + 
+  prior(normal(-1, 0.5), class = "b", coef = "distD66",  dpar = "muD66") +
+  prior(normal(-1, 0.5), class = "b", coef = "distPvdA", dpar = "muPvdA") +
+  prior(normal(-1, 0.5), class = "b", coef = "distVVD",  dpar = "muVVD") +
+  exclusions # from previous slide
+```
+
+## Posterior Draws
+
+```{r, post}
+#| cache: true
+post <- brm(vote ~ relig + urban + 
+            distCDA + distD66 + distPvdA + distVVD,
+          data = Nethvote, 
+          family = categorical,
+          prior = my_prior)
+```
+
+```{r}
+#| eval: false
+# just look at the parameters for PvdA to make it easier to read
+bayesplot::mcmc_areas(post, regex_pars = "PvdA")
+```
+
+## Plot from Previous Slide
+
+```{r}
+#| echo: false
+bayesplot::mcmc_areas(post, regex_pars = "PvdA")
+```
+
+## Simulating the Election
+
+-   This presumes that the sample is representative
+-   If not, you could utilize poststratification with `newdata`
+
+```{r}
+election <- posterior_predict(post)
+round(prop.table(table(c(election))), digits = 3)
+```
+
+. . .
+
+This suggests that party 1 (CDA) and party 2 (PvdA) were very close. In reality, the CDA [won](https://en.wikipedia.org/wiki/1989_Dutch_general_election) the most votes and formed a coalition with PvdA.
+
+## Conclusion
+
+-   Can estimate the posterior distribution a categorical model that is similar to what we specified in a generative model
+-   Most post-estimation functions work after calling `brm`
+-   Except for linear models, no parameter can be interpreted in isolation of the other parameters and there may be strong posterior dependence between them
+-   With a categorical model, the parameters are in units of $\eta_{nj}$ and $\eta_{nj}$ can only be interpreted relative to the baseline $\eta_{n1}$
+-   We can always get posterior expectations or posterior predictions and use those to draw substantive conclusions in understandable units
