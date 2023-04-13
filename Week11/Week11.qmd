@@ -178,7 +178,7 @@ matrix(c(gsub("\\.brmsfit$", "", methods(class = "brmsfit"))), ncol = 4) %>%
 
 ::: columns
 ::: {.column width="53%"}
-Math Notation $\begin{eqnarray*} \forall n: y_n & \equiv & \arg\max_j \eta_{nj} + \epsilon_{nj} \\ \forall n,j: \epsilon_{nj} & \thicksim & \mbox{Gumbel}\left(0,1\right) \\ \forall n,j: \eta_n & \equiv & \alpha_j + \sum_{k = 1}^K \beta_{kj} x_{nk} \\ \forall j: \alpha_j & \equiv & \gamma_j - \sum_{k = 1}^K \beta_{kj} \overline{x}_k \\ \forall j: \gamma_j & \thicksim & \mathcal{N}\left(m_{0j}, s_{0j}\right) \\ \forall k,j: \beta_{kj} & \thicksim & \mathcal{N}\left(m_{kj}, s_{kj}\right) \end{eqnarray*}$
+Math Notation $\begin{eqnarray*} \forall n: y_n & \equiv & \arg\max_j \eta_{nj} + \epsilon_{nj} \\ \forall n,j: \epsilon_{nj} & \thicksim & \mbox{Gumbel}\left(0,1\right) \\ \forall n,j: \eta_{nj} & \equiv & \alpha_j + \sum_{k = 1}^K \beta_{kj} x_{nk} \\ \forall j: \alpha_j & \equiv & \gamma_j - \sum_{k = 1}^K \beta_{kj} \overline{x}_k \\ \forall j: \gamma_j & \thicksim & \mathcal{N}\left(m_{0j}, s_{0j}\right) \\ \forall k,j: \beta_{kj} & \thicksim & \mathcal{N}\left(m_{kj}, s_{kj}\right) \end{eqnarray*}$
 :::
 
 ::: {.column width="47%"}
