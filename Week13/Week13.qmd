@@ -37,7 +37,7 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready",function () {
 
     -   Bowling: $x_2$ depends on $n = 10 - x_1$ and both depend on $\theta$
     -   HW3: Veto overrides depends on the number of regular vetoes
-    -   Linear models: $\sigma \thicksim \mathcal{E}\left(\frac{1}{r}\right)$ and $\forall n: \epsilon_n \thicksim \mathcal{N}\left(0,\sigma\right)$
+    -   Linear models: $\sigma \thicksim \mathcal{E}\left(r\right)$ and $\forall n: \epsilon_n \thicksim \mathcal{N}\left(0,\sigma\right)$
 
 -   In other words, it is just another application of the probability rules: $$f\left(\boldsymbol{\theta}\right) = 
     \int f\left(\boldsymbol{\theta}, \boldsymbol{\phi}\right) d\phi_1 \dots d\phi_K = 
@@ -72,7 +72,7 @@ dim(X)
 
 ::: columns
 ::: {.column width="46%"}
-Math Notation $\begin{eqnarray*} \forall n: y_n & \equiv & \mu_n + \epsilon_{n} \\ \forall n: \epsilon_{n} & \thicksim & \mathcal{N}\left(0, \sigma_\epsilon\right) \\ \sigma_\epsilon & \thicksim & \mathcal{E}\left(1 / r_\epsilon\right) \\ \forall n: \mu_{n} & \equiv & \alpha + \Delta \times \text{PR}_n + \\ & & \sum \beta_{k} x_{nk} \\ \alpha & \thicksim & \mathcal{N}\left(m_0, s_0\right) \\ \Delta & \thicksim & \mathcal{N}\left(m_1, s_1\right) \\ \forall k: \beta_{k} & \thicksim & \mathcal{N}\left(0, \sigma_\beta\right) \\ \sigma_\beta & \thicksim & \mathcal{E}\left(1 / r_\beta\right) \end{eqnarray*}$
+Math Notation $\begin{eqnarray*} \forall n: y_n & \equiv & \mu_n + \epsilon_{n} \\ \forall n: \epsilon_{n} & \thicksim & \mathcal{N}\left(0, \sigma_\epsilon\right) \\ \sigma_\epsilon & \thicksim & \mathcal{E}\left(r_\epsilon\right) \\ \forall n: \mu_{n} & \equiv & \alpha + \Delta \times \text{PR}_n + \\ & & \sum \beta_{k} x_{nk} \\ \alpha & \thicksim & \mathcal{N}\left(m_0, s_0\right) \\ \Delta & \thicksim & \mathcal{N}\left(m_1, s_1\right) \\ \forall k: \beta_{k} & \thicksim & \mathcal{N}\left(0, \sigma_\beta\right) \\ \sigma_\beta & \thicksim & \mathcal{E}\left(r_\beta\right) \end{eqnarray*}$
 :::
 
 ::: {.column width="54%"}
@@ -188,7 +188,7 @@ brms::get_prior(turnout_2008 ~ PR + gp(log_Ratio, k = 5, c = 5 / 4),
 
 ::: columns
 ::: {.column width="50%"}
-Bayesian $\begin{eqnarray*} \forall n: y_n & \equiv & \eta_n + \epsilon_{n} \\ \forall n: \epsilon_{n} & \thicksim & \mathcal{N}\left(0, \sigma_\epsilon\right) \\ \sigma_\epsilon & \thicksim & \mathcal{E}\left(1 / r_\epsilon\right) \\ \forall n: \eta_{n} & \equiv & \alpha + a_j + \left(\beta + b_j\right) x_{n} \\ \alpha & \thicksim & \mathcal{N}\left(m_0, s_0\right) \\ \beta & \thicksim & \mathcal{N}\left(m_1, s_1\right) \\ \forall j: b_j & \thicksim & \mathcal{N}\left(-\frac{\sigma_b}{\sigma_a} \rho a_j, \sqrt{1 - \rho^2} \sigma_b\right) \\ \forall j: a_j & \thicksim & \mathcal{N}\left(0, \sigma_a\right) \\ \sigma_a, \sigma_b & \thicksim & \mathcal{E}\left(1 / r\right) \\ \rho & \thicksim & \mathcal{U}\left(-1,1\right) \end{eqnarray*}$
+Bayesian $\begin{eqnarray*} \forall n: y_n & \equiv & \eta_n + \epsilon_{n} \\ \forall n: \epsilon_{n} & \thicksim & \mathcal{N}\left(0, \sigma_\epsilon\right) \\ \sigma_\epsilon & \thicksim & \mathcal{E}\left(r_\epsilon\right) \\ \forall n: \eta_{n} & \equiv & \alpha + a_j + \left(\beta + b_j\right) x_{n} \\ \alpha & \thicksim & \mathcal{N}\left(m_0, s_0\right) \\ \beta & \thicksim & \mathcal{N}\left(m_1, s_1\right) \\ \forall j: b_j & \thicksim & \mathcal{N}\left(-\frac{\sigma_b}{\sigma_a} \rho a_j, \sqrt{1 - \rho^2} \sigma_b\right) \\ \forall j: a_j & \thicksim & \mathcal{N}\left(0, \sigma_a\right) \\ \sigma_a, \sigma_b & \thicksim & \mathcal{E}\left(r\right) \\ \rho & \thicksim & \mathcal{U}\left(-1,1\right) \end{eqnarray*}$
 :::
 
 ::: {.column width="50%"}
@@ -204,17 +204,15 @@ Frequentist $\begin{eqnarray*} \forall n: y_n & \equiv & \eta_n + \epsilon_{n} \
 
 ## Hierarchical Models in Psychology
 
-- In political science and economics, the "big" units are often countries or sub-national
-  political areas like states and the "small" units are people
-- In [psychology](https://arxiv.org/pdf/1506.04967.pdf), the "big" units are often people and 
-  the "small" units are questions or outcomes on repeated tasks
-- Hierarchical model syntax is like
+-   In political science and economics, the "big" units are often countries or sub-national political areas like states and the "small" units are people
+-   In [psychology](https://arxiv.org/pdf/1506.04967.pdf), the "big" units are often people and the "small" units are questions or outcomes on repeated tasks
+-   Hierarchical model syntax is like
+
 ```{r, eval = FALSE}
 y ~ x + (x | person) + (1 | question)
 ```
 
-- Question of interest is how to predict `y` for a new "big" unit (person), as opposed
-  to predicting how well an old "big" unit will answer a new "small" unit (question)
+-   Question of interest is how to predict `y` for a new "big" unit (person), as opposed to predicting how well an old "big" unit will answer a new "small" unit (question)
 
 ## Hierarchical Default Priors
 
@@ -234,7 +232,7 @@ get_prior(valence ~ arousal + (1 + arousal | PID), data = dat) %>%
 
 ::: columns
 ::: {.column width="50%"}
-Math Notation $\begin{eqnarray*} \forall n: y_n & \equiv & \eta_n + \epsilon_{n} \\ \forall n: \epsilon_{n} & \thicksim & \mathcal{N}\left(0, \sigma_\epsilon\right) \\ \sigma_\epsilon & \thicksim & \mathcal{E}\left(1 / r_\epsilon\right) \\ \forall n: \eta_{n} & \equiv & \alpha + a_j + \left(\beta + b_j\right) x_{n} \\ \alpha & \thicksim & \mathcal{N}\left(m_0, s_0\right) \\ \beta & \thicksim & \mathcal{N}\left(m_1, s_1\right) \\ \forall j: b_j & \thicksim & \mathcal{N}\left(-\frac{\sigma_b}{\sigma_a} \rho a_j, \sqrt{1 - \rho^2} \sigma_b\right) \\ \forall j: a_j & \thicksim & \mathcal{N}\left(0, \sigma_a\right) \\ \sigma_a, \sigma_b & \thicksim & \mathcal{E}\left(1 / r\right) \\ \rho & \thicksim & \mathcal{U}\left(-1,1\right) \end{eqnarray*}$
+Math Notation $\begin{eqnarray*} \forall n: y_n & \equiv & \eta_n + \epsilon_{n} \\ \forall n: \epsilon_{n} & \thicksim & \mathcal{N}\left(0, \sigma_\epsilon\right) \\ \sigma_\epsilon & \thicksim & \mathcal{E}\left(r_\epsilon\right) \\ \forall n: \eta_{n} & \equiv & \alpha + a_j + \left(\beta + b_j\right) x_{n} \\ \alpha & \thicksim & \mathcal{N}\left(m_0, s_0\right) \\ \beta & \thicksim & \mathcal{N}\left(m_1, s_1\right) \\ \forall j: b_j & \thicksim & \mathcal{N}\left(-\frac{\sigma_b}{\sigma_a} \rho a_j, \sqrt{1 - \rho^2} \sigma_b\right) \\ \forall j: a_j & \thicksim & \mathcal{N}\left(0, \sigma_a\right) \\ \sigma_a, \sigma_b & \thicksim & \mathcal{E}\left(r\right) \\ \rho & \thicksim & \mathcal{U}\left(-1,1\right) \end{eqnarray*}$
 :::
 
 ::: {.column width="50%"}
@@ -269,7 +267,6 @@ outcomes <- group_by(dat, PID) %>%
                               sd = sigma),
               y = eta + epsilon))
 ```
-
 :::
 :::
 :::
@@ -285,6 +282,7 @@ post <-  brm(valence ~ arousal + (1 + arousal | PID), data = dat,
                prior(exponential(0.1), class = "sigma") +
                prior(exponential(0.5), class = "sd"))
 ```
+
 ```{r}
 post
 ```
@@ -310,11 +308,9 @@ nd$PID <- 0L # now predict for a new person
 y_0 <- posterior_predict(post, newdata = nd, allow_new_levels = TRUE)
 ```
 
-- How is that even possible? For each of the $R$ posterior draws, $\dots$
+-   How is that even possible? For each of the $R$ posterior draws, $\dots$
 
-    1. Draw $a_0$ and $b_0$ from a bivariate normal given $\sigma_a$, $\sigma_b$, $\rho$
-    2. Form $\boldsymbol{\eta}_0 \equiv \alpha + a_0 + \left(\beta + b_0\right) \mathbf{x}$
-    3. Draw each $\epsilon$ from a normal distribution with mean zero
-      and standard deviation $\sigma$
-    4. Form the prediction vector $\mathbf{y}_0 = \boldsymbol{\eta}_0 + \boldsymbol{\epsilon}$
-
+    1.  Draw $a_0$ and $b_0$ from a bivariate normal given $\sigma_a$, $\sigma_b$, $\rho$
+    2.  Form $\boldsymbol{\eta}_0 \equiv \alpha + a_0 + \left(\beta + b_0\right) \mathbf{x}$
+    3.  Draw each $\epsilon$ from a normal distribution with mean zero and standard deviation $\sigma$
+    4.  Form the prediction vector $\mathbf{y}_0 = \boldsymbol{\eta}_0 + \boldsymbol{\epsilon}$
