@@ -1,0 +1,184 @@
+---
+title: "Review Session"
+author: "Ben Goodrich"
+format:
+  revealjs:
+    embed-resources: true
+    self-contained-math: true
+editor: visual
+execute: 
+  echo: true
+editor_options: 
+  chunk_output_type: console
+---
+
+## Final Exam
+
+```{=html}
+<script type="text/x-mathjax-config">
+MathJax.Hub.Register.StartupHook("TeX Jax Ready",function () {
+  MathJax.Hub.Insert(MathJax.InputJax.TeX.Definitions.macros,{
+    cancel: ["Extension","cancel"],
+    bcancel: ["Extension","cancel"],
+    xcancel: ["Extension","cancel"],
+    cancelto: ["Extension","cancel"]
+  });
+});
+</script>
+```
+-   Will be on TUESDAY May 9th from 4:10 PM to 7:00 PM in IAB 270B (where we have recitations), which is near my office (see the syllabus for a link to a video on how to get there)
+
+-   Final exam will be similar in format to the midterm
+
+-   There are plenty of questions to be asked about the course material since the midterm, but all of it builds on the framework we built up prior to the midterm, so the final exam is "cumulative" in that sense
+
+-   You will have to use rstanarm or brms but we are not going to spend time on those today
+
+## What Is Bayesian Analysis?
+
+::: incremental
+-   The distinguishing feature of Bayesian analysis is not Bayes Rule but rather using probability distributions to describe beliefs about unknowns
+
+-   Things that are not Bayesian in that sense:
+
+    -   Frequentist point or interval estimators
+
+    -   Supervised learning optima or whatever early stopping is
+
+    -   "Empirical Bayes" that estimates priors from the data
+
+    -   Finding a posterior mode and stopping
+
+-   No one said Bayesian analysis produced the wrong answers; they said the questions should not be asked.
+:::
+
+## [Bayesian Articles over Time](https://www.annualreviews.org/doi/abs/10.1146/annurev-soc-073018-022457)
+
+![](figure.jpeg){alt="Lynch and Bartlett (2019)" fig-alt="Lynch and Bartlett (2019)" fig-align="center"}
+
+## Social Science
+
+::: incremental
+-   Fisher formulated his philosophy before social science, particularly quantitative social science, was established
+
+-   Fisher was wrong in thinking that science should strive to be objective; it never was and never will be so we need a system for belief management and decision making.
+
+-   Fisher would have objected to the BioNTech / Pfizer vaccine getting emergency approval, but that process updated scientists' beliefs about mRNA vaccines
+
+-   In 2023, there are no small, simple random samples anyway
+
+-   Instrumental variables is one of the few methods developed by social scientists, but the 2SLS estimator is just awful
+:::
+
+## Breiman (2001) Article
+
+::: incremental
+-   What did Breiman get right, what did he get wrong, what has changed since 2001, and which of those changes did Breiman not anticipate?
+
+-   If you put probability into supervised learning, it would just be Bayesian analysis
+
+-   Supervised learning does not marginalize over
+
+    -   Parameter uncertainty
+
+    -   Splitting into training / testing / validation, etc.
+
+    -   Unknown functions
+
+    -   Error in future data
+:::
+
+## Four or Five Sources of Uncertainty {.smaller}
+
+::: incremental
+1.  Uncertainty about parameters in models
+2.  Uncertainty about which model is best
+3.  Uncertainty about what to do with the output of the (best) model(s)
+4.  Uncertainty about whether the software works as intended
+5.  Uncertainty about whether the (best) model(s) hold with other data
+:::
+
+. . .
+
+| Topic | Frequentist     | Bayesian           | Supervised Learning         |
+|-------|-----------------|--------------------|-----------------------------|
+| 1     | Non-existent    | Posterior          | Completely ignored          |
+| 2     | Test down       | ELPD, stacking     | One-shot cross-validation   |
+| 3     | Convention      | Decision theory    | Different conventions       |
+| 4     | Non-existent    | Stan warnings      | Not much                    |
+| 5     | Random sampling | Poststratification | Testing split from training |
+
+## Trump vs. Biden in Georgia in 2024
+
+-   What proportion $\left(\mu\right)$ of Georgia voters will vote for Biden?
+
+::: incremental
+-   Freqentist: If you tell me $\mu$ and $N$, I can tell you (objectively) that the distribution of $\widehat{\mu}$ across polls of size $N$ is asymptotically normal with expectation $\mu$ and standard deviation $\sqrt{\frac{\mu \left(1 - \mu\right)}{N}}$
+-   Bayesian: If you tell me what you believe about $\mu$ before conducting 1 poll of size $N$, I can tell you what you should (subjectively) believe about $\mu$ afterward
+-   Supervised learning: If you give me all tweets mentioning Biden from Georgia IP addresses, I can classify them
+:::
+
+## Submodel Selection
+
+-   Should I include $x$ as a predictor of $y$?
+
+. . .
+
+-   Freqentist: Test the null hypothesis that $\beta = 0$ against the alternative hypothesis that $\beta \neq 0$
+
+-   Bayesian: Yes, if it is justified by your theory. That way your posterior uncertainty about $\beta$ is preserved in the analysis
+
+-   Supervised Learning: Use a penalty function that is not differentiable at zero, such as L1, and keep $x$ iff $\widehat{\beta} \neq 0$
+
+## Regularization
+
+-   Should I "regularize" the estimates?
+
+. . .
+
+-   Freqentist: No, because it messes up the finite-sample distribution of the point estimator across datasets conditional on the true parameter, so you cannot control the Type I error rate
+
+-   Bayesian: Yes, because unregularized posterior estimates stem from improper prior distributions
+
+-   Supervised Learning: Yes, but you only have to worry about the influence of the penalty function on the optimum
+
+## Nonlinearity
+
+-   What if the data-generating process is not a GLM?
+
+. . .
+
+-   Freqentist: Estimating the parameters of a non-linear function is fine as long as you condition on the true nonlinear functional form
+
+-   Bayesian: Put a prior on the unknown non-linear function that reflects your beliefs about it before seeing the data, although you have to believe it is continuous in order to estimate it with a spline or Gaussian process
+
+-   Supervised Learning: Use random forests, neural networks, etc. that allow you to learn the nonlinear function without assuming (much of) anything about it
+
+## Heterogeneity
+
+-   What if the data-generating process is not homogenous?
+
+. . .
+
+-   Frequentist: The big units would change in every replication of a cluster-sampling design so integrate any unknown that is specific to a big unit out of the likelihood
+
+-   Bayesian: Condition on which big unit each small unit is a member of, specify priors on the degree of heterogeneity in the data-generating processes across big units, and draw from the joint posterior distribution of all the unknowns
+
+-   Supervised Learning: Include interaction terms between the big group indicators and the predictors and use a penalty function that is not differentiable at zero
+
+## Using Non-representative Data
+
+-   Freqentist: Use weights that are the reciprocal of the probability that an observation appears in a sample so that the estimator is consistent across datasets that could be collected
+-   Bayesian: Weight the posterior predictions by the proportion of the population that each big unit comprises
+-   Supervised Learning: Collect data on the entire population of interest
+
+## Problems with Applied Research {.smaller}
+
+-   Flip through the latest issue of a journal in your field that regularly publishes quantitative articles
+
+    -   How many articles provide any justification for their choice to use Frequentist estimation techniques? Likely none, especially for finite $N$.
+    -   How many avail themselves of the convention that if the null hypothesis is rejected, then proceed as if $\widehat{\boldsymbol{\theta}} = \boldsymbol{\theta}$?
+    -   How many push $\widehat{\boldsymbol{\theta}}$ through a non-linear function, $g$, and interpret $g\left(\widehat{\boldsymbol{\theta}}\right)$?
+    -   How many say something about the estimated standard errors, $p$-values, and / or confidence intervals that would only make sense if referring to a multivariate normal posterior distribution?
+
+-   Most applied research consists of trying to draw Bayesian conclusions from non-Bayesian methods despite genuine Bayesian methods being available for their problem
